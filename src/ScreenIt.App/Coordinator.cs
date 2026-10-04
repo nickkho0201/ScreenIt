@@ -20,7 +20,11 @@ internal sealed class Coordinator : IDisposable
     private readonly PasteSequencer paste;
     private readonly CancellationTokenSource pasteCancellation = new();
     private readonly Forms.ToolStripMenuItem pasteCommand = new("Paste Session") { ShortcutKeyDisplayString="Ctrl+Alt+V" };
-    private readonly Forms.ToolStripMenuItem darkTheme=new("Dark"), lightTheme=new("Light");
+    internal Preferences Preferences { get; }
+    internal string PreferencesPath { get; set; }=Appearance.SettingsPath;
+    internal SettingsWindow? Settings { get; private set; }
+    private readonly HotkeyRegistration hotkeys;
+    private readonly Forms.ToolStripMenuItem settingsCommand=new("Settings"),moreCommand=new("More"),exitCommand=new("Exit");
     private string topology = "";
     private bool busy, suspended, disposed;
     internal ClearSessionDialog? ClearDialog { get; private set; }
@@ -35,29 +39,26 @@ internal sealed class Coordinator : IDisposable
     internal ToastService Toasts { get; } = new();
     public int OverlayCount => overlays.Count;
     internal IntPtr ControlHandle => source.Handle;
-    public Coordinator(bool showTray = true, bool registerHotkey = true)
+    public Coordinator(bool showTray = true, bool registerHotkey = true,Preferences? preferences=null)
     {
         var hwnd = new WindowInteropHelper(control).EnsureHandle(); source = HwndSource.FromHwnd(hwnd)!; source.AddHook(Hook);
-        if (registerHotkey && !Native.RegisterHotKey(hwnd, 1, 0x4000 | 0x0001 | 0x0002, 0x53))
-        { source.RemoveHook(Hook); control.Close(); source.Dispose(); throw new InvalidOperationException("Ctrl+Alt+S is already in use."); }
-        if (registerHotkey && !Native.RegisterHotKey(hwnd, 2, 0x4000 | 0x0001 | 0x0002, 0x56))
-        { Native.UnregisterHotKey(hwnd, 1); source.RemoveHook(Hook); control.Close(); source.Dispose(); throw new InvalidOperationException("Ctrl+Alt+V is already in use."); }
-        if (registerHotkey && !Native.RegisterHotKey(hwnd, 3, 0x4003, 0x58))
-        { Native.UnregisterHotKey(hwnd, 1); Native.UnregisterHotKey(hwnd, 2); source.RemoveHook(Hook); control.Close(); source.Dispose(); throw new InvalidOperationException("Ctrl+Alt+X is already in use."); }
+        Preferences=preferences ?? new Preferences { Language="en",Theme=ThemePreference.Dark };
+        hotkeys=new(hwnd,registerHotkey);
+        bool fallback=!hotkeys.Start(Preferences.Hotkeys);
+        L.Changed+=LanguageChanged;
         paste = new(new WindowsPasteDelivery(hwnd));
         paste.Progress += (state, index, total) => { if (!disposed) Update(state == PasteState.PastingComments ? "Pasting comments…" : $"Pasting session… {index}/{total}"); };
         Native.WTSRegisterSessionNotification(hwnd, 0);
         capture.Click += async (_, _) => await Capture();
         copyImages.Click += (_, _) => CopyImages(); copyComments.Click += (_, _) => CopyComments();
         // A tray menu owns foreground. Do not guess/activate an earlier receiver from there.
-        pasteCommand.Click += (_, _) => Notify("Focus the target composer, then press Ctrl+Alt+V.");
+        pasteCommand.Click += (_, _) => Notify(string.Format("Focus the target composer, then press {0}.",Preferences.Hotkeys[GlobalAction.Paste]));
         count.Enabled = false;
         clearCommand.Click += (_, _) => RequestClear();
-        var more = new Forms.ToolStripMenuItem("More"); more.DropDownItems.Add(copyImages); more.DropDownItems.Add(copyComments);
-        menu.Items.Add(capture); menu.Items.Add(pasteCommand); menu.Items.Add(new Forms.ToolStripSeparator()); menu.Items.Add(count); menu.Items.Add(feedback);
-        var themes=new Forms.ToolStripMenuItem("Theme");themes.DropDownItems.Add(darkTheme);themes.DropDownItems.Add(lightTheme);
-        darkTheme.Click+=(_,_)=>SelectTheme(UiTheme.Dark);lightTheme.Click+=(_,_)=>SelectTheme(UiTheme.Light);
-        menu.Items.Add(clearCommand); menu.Items.Add(themes); menu.Items.Add(more); menu.Items.Add(new Forms.ToolStripSeparator()); menu.Items.Add("Exit", null, (_, _) => Exit());
+        moreCommand.DropDownItems.Add(copyImages);moreCommand.DropDownItems.Add(copyComments);
+        menu.Items.Add(capture);menu.Items.Add(pasteCommand);menu.Items.Add(clearCommand);menu.Items.Add(count);menu.Items.Add(feedback);
+        menu.Items.Add(new Forms.ToolStripSeparator());settingsCommand.Click+=(_,_)=>Application.Current.Dispatcher.BeginInvoke(ShowSettings);
+        menu.Items.Add(settingsCommand);menu.Items.Add(moreCommand);menu.Items.Add(new Forms.ToolStripSeparator());exitCommand.Click+=(_,_)=>Exit();menu.Items.Add(exitCommand);
         icon = UtilityUi.TrayIcon();
         tray = new Forms.NotifyIcon { Icon = icon, Text = "ScreenIt", ContextMenuStrip = menu, Visible = showTray };
         tray.DoubleClick += async (_, _) => await Capture();
@@ -67,23 +68,50 @@ internal sealed class Coordinator : IDisposable
                 Application.Current.Dispatcher.BeginInvoke(Exit);
         };
         try { temporary.Cleanup(DateTimeOffset.UtcNow); } catch (IOException) { } catch (UnauthorizedAccessException) { }
-        Update();
+        Update();if(fallback) Application.Current.Dispatcher.BeginInvoke(()=>UtilityUi.Inform("Some configured shortcuts were unavailable. Available defaults are active; open Settings."));
     }
-    private void SelectTheme(UiTheme theme)
+    internal void ShowSettings()
     {
-        try { Appearance.Save(Appearance.SettingsPath,theme);Appearance.Select(theme);Update(); }
-        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { Error("Appearance could not be saved. Please retry."); }
+        if(disposed) return;
+        if(Settings!=null) { if(!Settings.IsVisible) Settings.Show();Settings.WindowState=WindowState.Normal;Settings.Activate();return; }
+        var window=new SettingsWindow(this);Settings=window;window.Closed+=(_,_)=> { if(ReferenceEquals(Settings,window)) Settings=null; };
+        try { window.Show();window.Activate(); }catch { try { window.Close(); }finally { Settings=null; }throw; }
     }
+    private void LanguageChanged() { if(!disposed) Update(); }
+    internal bool ChangePreferences(ThemePreference? theme=null,string? language=null)
+    {
+        var oldTheme=Preferences.Theme;var oldLanguage=Preferences.Language;
+        if(theme.HasValue) Preferences.Theme=theme.Value;if(language!=null) Preferences.Language=language;
+        try { Preferences.Save(PreferencesPath); }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { Preferences.Theme=oldTheme;Preferences.Language=oldLanguage;Error("Settings could not be saved. Please retry.");return false; }
+        Appearance.Choose(Preferences.Theme);L.Select(Preferences.Language);Update();return true;
+    }
+    internal bool ChangeHotkeys(Dictionary<GlobalAction,Hotkey> proposed)
+    {
+        if(paste.IsActive || busy) return false;
+        var old=new Dictionary<GlobalAction,Hotkey>(Preferences.Hotkeys);
+        bool success=hotkeys.Replace(proposed,()=> {
+            Preferences.Hotkeys=new(proposed);
+            try { Preferences.Save(PreferencesPath);return true; }
+            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { Preferences.Hotkeys=old;return false; }
+        });
+        if(!success) return false;
+        Update();return true;
+    }
+    internal void ExitForUpdate() { Dispose();Application.Current.Shutdown(); }
     private IntPtr Hook(IntPtr hwnd, int msg, IntPtr wp, IntPtr lp, ref bool handled)
     {
         if (msg == 0x0010) { handled = true; Application.Current.Dispatcher.BeginInvoke(Exit); return IntPtr.Zero; }
         if (msg == 0x0312)
         {
             handled = true;
-            if (wp.ToInt64() == 2) { var target = PasteInput.Foreground(); _ = PasteSession(target); }
-            else if (wp.ToInt64() == 1) _ = Capture();
-            else if (wp.ToInt64() == 3) RequestClear();
+            if(Settings is { Recording:true,IsVisible:true,IsActive:true }) { Settings.RecordShortcut(new((uint)((long)lp & 15),(uint)(((long)lp >> 16) & 0xFFFF)));return IntPtr.Zero; }
+            var action=hotkeys.ActionFor((int)wp.ToInt64());
+            if (action==GlobalAction.Paste) { var target = PasteInput.Foreground(); _ = PasteSession(target); }
+            else if (action==GlobalAction.Capture) _ = Capture();
+            else if (action==GlobalAction.Clear) RequestClear();
         }
+        if(msg is 0x001A or 0x031A) Appearance.SystemChanged();
         if (overlays.Count != 0 && (msg == 0x007E || msg == 0x001A))
         {
             try { if (Topology(Native.Monitors()) != topology) Suspend("Display configuration changed."); } catch (Exception) { Suspend("Display configuration is unavailable."); }
@@ -98,7 +126,7 @@ internal sealed class Coordinator : IDisposable
         if (ConfirmationOpen || UtilityUi.PromptOpen) { ClearDialog?.BringForward();Update("Close the Clear Session confirmation first"); return; }
         if (disposed || busy) return;
         if (overlays.Count != 0) { ReturnToDraft(); return; }
-        busy = true; Toasts.Hide(); Update(); menu.Close();
+        busy = true; Toasts.Hide(); Settings?.Hide();Update(); menu.Close();
         try
         {
             await Dispatcher.Yield(DispatcherPriority.Render); Native.Flush();
@@ -112,7 +140,7 @@ internal sealed class Coordinator : IDisposable
             foreach (var overlay in overlays) overlay.Placement();
             overlays.FirstOrDefault(o => o.Frame.Monitor.Primary)?.ReturnFocus();
         }
-        catch (Exception ex) { CloseOverlays(); Error("Capture could not complete. " + SafeError(ex)); }
+        catch (Exception ex) { CloseOverlays(); Error(L.T("Capture could not complete.")+" " + L.T(SafeError(ex))); }
         finally { busy = false; Update(); }
     }
     public bool IsCurrent(AnnotationOverlay overlay) => overlays.Contains(overlay);
@@ -136,10 +164,10 @@ internal sealed class Coordinator : IDisposable
             Rasters.EnsureCapacity(Rasters.Count + 1);
             var screenshot = Session.Commit(overlay.Model);
             Rasters.Add(screenshot.Id, pair);
-            CloseOverlays(); Update("Screenshot " + screenshot.Letter + " added");
+            CloseOverlays(); Update($"Screenshot {screenshot.Letter} added");
             Toasts.Show(ToastMessage.Added(screenshot.Letter,Session.Screenshots.Count),overlay.Frame.Monitor);
         }
-        catch (Exception ex) { Error("Screenshot could not be committed. " + SafeError(ex)); }
+        catch (Exception ex) { Error(L.T("Screenshot could not be committed.")+" " + L.T(SafeError(ex))); }
     }
     public void Cancel()
     {
@@ -151,7 +179,7 @@ internal sealed class Coordinator : IDisposable
         if (suspended || overlays.Count == 0) return; suspended = true;
         foreach (var overlay in overlays) { overlay.InterruptGesture(); overlay.Hide(); }
         Update("Capture suspended");
-        Application.Current.Dispatcher.BeginInvoke(() => Error(reason + " Your screenshot is still available. Use Capture to cancel and start again."));
+        Application.Current.Dispatcher.BeginInvoke(() => Error(L.T(reason)+" "+L.T("Your screenshot is still available. Use Capture to cancel and start again.")));
     }
     private void CloseOverlays()
     {
@@ -167,14 +195,14 @@ internal sealed class Coordinator : IDisposable
             var files = temporary.Write(Session.Screenshots.Select(s => (s.Letter, Rasters[s.Id].Annotated)).ToArray());
             ClipboardTransport.Publish(source.Handle, ClipboardPayload.Images(files)); Update(Session.Screenshots.Count + " screenshots copied");
         }
-        catch (Exception ex) { Error("Images could not be copied. Session retained; retry Copy. " + SafeError(ex)); }
+        catch (Exception ex) { Error(L.T("Images could not be copied. Session retained; retry Copy.")+" " + L.T(SafeError(ex))); }
     }
     public void CopyComments()
     {
         if (paste.IsActive) { Update("Paste Session is running"); return; }
         if (Session.Screenshots.Count == 0) return;
         try { ClipboardTransport.Publish(source.Handle, ClipboardPayload.Comments(CommentFormatter.Format(Session))); Update("Comments copied"); }
-        catch (Exception ex) { Error("Comments could not be copied. Session retained; retry Copy. " + SafeError(ex)); }
+        catch (Exception ex) { Error(L.T("Comments could not be copied. Session retained; retry Copy.")+" " + L.T(SafeError(ex))); }
     }
     public void Clear(bool confirmed = false)
     {
@@ -221,16 +249,18 @@ internal sealed class Coordinator : IDisposable
     }
     private void Update(string? hint = null)
     {
-        darkTheme.Checked=Appearance.Current==UiTheme.Dark;lightTheme.Checked=Appearance.Current==UiTheme.Light;
+        capture.Text=L.T("Capture");pasteCommand.Text=L.T("Paste Session");clearCommand.Text=L.T("Clear Session");settingsCommand.Text=L.T("Settings");moreCommand.Text=L.T("More");exitCommand.Text=L.T("Exit");copyImages.Text=L.T("Copy Session Images");copyComments.Text=L.T("Copy Session Comments");
+        capture.ShortcutKeyDisplayString=Preferences.Hotkeys[GlobalAction.Capture].ToString();pasteCommand.ShortcutKeyDisplayString=Preferences.Hotkeys[GlobalAction.Paste].ToString();clearCommand.ShortcutKeyDisplayString=Preferences.Hotkeys[GlobalAction.Clear].ToString();
         count.Text = $"Session: {Session.Screenshots.Count} {(Session.Screenshots.Count == 1 ? "screenshot" : "screenshots")}";
-        feedback.Text = hint ?? ""; feedback.Visible = !string.IsNullOrEmpty(hint);
+        count.Text=L.T(count.Text);
+        feedback.Text = L.T(hint ?? ""); feedback.Visible = !string.IsNullOrEmpty(hint);
         clearCommand.Enabled = !busy && overlays.Count == 0 && !paste.IsActive && !ConfirmationOpen;
         capture.Enabled = !busy && !paste.IsActive && !ConfirmationOpen; copyImages.Enabled = copyComments.Enabled = pasteCommand.Enabled = Session.Screenshots.Count > 0 && !paste.IsActive && !ConfirmationOpen;
-        var tooltip = "ScreenIt — " + (hint ?? count.Text);
+        var tooltip = "ScreenIt — " + (L.T(hint ?? count.Text));
         tray.Text = tooltip[..Math.Min(63, tooltip.Length)];
     }
-    private static string SafeError(Exception ex) => ex is OutOfMemoryException ? "Not enough memory." : ex is InvalidOperationException && ex.Message.StartsWith("Clipboard is busy", StringComparison.Ordinal) ? "Clipboard is busy." : "Operation failed (" + ex.GetType().Name + ").";
-    private static void Error(string message) => UtilityUi.Inform(message);
+    private static string SafeError(Exception ex) => ex is OutOfMemoryException ? "Not enough memory." : ex is InvalidOperationException && ex.Message.StartsWith("Clipboard is busy", StringComparison.Ordinal) ? "Clipboard is busy." : "Operation failed.";
+    private static void Error(string message) => UtilityUi.Inform(L.T(message));
     private void Notify(string message)
     {
         Update(message);
@@ -254,19 +284,20 @@ internal sealed class Coordinator : IDisposable
     {
         if (disposed) return;
         if (ConfirmationOpen || UtilityUi.PromptOpen) { ClearDialog?.BringForward();Notify("Close the Clear Session confirmation first"); return; }
-        if (busy || overlays.Count != 0) { Notify("Finish the capture, focus the receiver, then press Ctrl+Alt+V."); return; }
+        if (busy || overlays.Count != 0) { Notify(string.Format("Finish the capture, focus the receiver, then press {0}.",Preferences.Hotkeys[GlobalAction.Paste])); return; }
         bool hasComments = Session.Screenshots.Any(s => s.Annotations.OfType<Marker>().Any(m => !string.IsNullOrWhiteSpace(m.Comment)));
+        PasteInput.TriggerKey=Preferences.Hotkeys[GlobalAction.Paste].Key;
         var result = await paste.Run(target, Session.Screenshots.Count, PreparePaste, pasteCancellation.Token);
         if (disposed) return;
-        Update(result.Status + (result.Outcome == PasteOutcome.Completed && Session.Screenshots.Any(s => s.Annotations.OfType<Marker>().Any(m => !string.IsNullOrWhiteSpace(m.Comment))) ? " + comments" : ""));
+        Update(result.Outcome==PasteOutcome.Completed ? ToastMessage.Paste(result,hasComments)!.Detail : L.T(result.Status));
         if (result.Outcome is not PasteOutcome.Completed and not PasteOutcome.Busy) Notify(result.Status);
         if (ToastMessage.Paste(result,hasComments) is { } message) Toasts.Show(message, target: target.Hwnd);
     }
     public void Dispose()
     {
-        if (disposed) return; disposed = true; ClearDialog?.Close(); ClearDialog=null; pasteCancellation.Cancel(); Toasts.Dispose(); CloseOverlays(); Rasters.Clear(); Session.Clear();
+        if (disposed) return; disposed = true;L.Changed-=LanguageChanged;Settings?.Close();Settings=null; ClearDialog?.Close(); ClearDialog=null; pasteCancellation.Cancel(); Toasts.Dispose(); CloseOverlays(); Rasters.Clear(); Session.Clear();
         tray.Visible = false; tray.Dispose(); icon.Dispose(); menu.Dispose();
-        Native.UnregisterHotKey(source.Handle, 1); Native.UnregisterHotKey(source.Handle, 2); Native.UnregisterHotKey(source.Handle, 3); Native.WTSUnRegisterSessionNotification(source.Handle); source.RemoveHook(Hook);
+        hotkeys.Dispose(); Native.WTSUnRegisterSessionNotification(source.Handle); source.RemoveHook(Hook);
         control.Close(); source.Dispose();
     }
 }

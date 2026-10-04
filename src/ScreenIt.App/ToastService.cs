@@ -86,6 +86,7 @@ internal sealed class ToastWindow : Window
         border.Background=Appearance.Palette.Surface;border.BorderBrush=Appearance.Palette.Border;
         grid.Children.OfType<TextBlock>().First().Foreground=Message.Warning ? Appearance.Palette.Warning : Appearance.Palette.AccentText;
         var blocks=grid.Children.OfType<StackPanel>().Single().Children.OfType<TextBlock>().ToArray();
+        blocks[0].Text=L.T(Message.Title);if(blocks.Length>1) blocks[1].Text=L.T(Message.Detail);
         blocks[0].Foreground=UtilityUi.Ink;foreach(var block in blocks.Skip(1)) block.Foreground=UtilityUi.Muted;
     }
     private IntPtr Hook(IntPtr hwnd,int msg,IntPtr wp,IntPtr lp,ref bool handled)

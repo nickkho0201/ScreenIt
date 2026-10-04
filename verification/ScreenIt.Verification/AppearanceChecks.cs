@@ -15,12 +15,12 @@ internal static class AppearanceChecks
         var root=Path.Combine(Path.GetTempPath(),"ScreenItAppearanceVerification",Guid.NewGuid().ToString("N"));var path=Path.Combine(root,"settings.json");
         try
         {
-            check(Appearance.Load(path)==UiTheme.Dark,"Missing theme defaults Dark");
-            Appearance.Save(path,UiTheme.Light);check(Appearance.Load(path)==UiTheme.Light && File.ReadAllText(path)=="{\"theme\":\"light\"}\n","Light theme minimal schema roundtrip");
-            Appearance.Save(path,UiTheme.Dark);check(Appearance.Load(path)==UiTheme.Dark && Directory.GetFiles(root).Length==1,"Atomic theme replacement leaves only settings file");
-            File.WriteAllText(path,"bad-json");check(Appearance.Load(path)==UiTheme.Dark,"Malformed theme falls back Dark");File.WriteAllText(path,"{\"theme\":\"unknown\"}");check(Appearance.Load(path)==UiTheme.Dark,"Unknown theme fallback");
-            File.WriteAllText(path,"[]");check(Appearance.Load(path)==UiTheme.Dark,"Non-object settings falls back Dark");
-            File.WriteAllText(path,new string('x',300));check(Appearance.Load(path)==UiTheme.Dark,"Oversized settings rejected");
+            check(Preferences.Load(path).Theme==ThemePreference.System,"Missing theme defaults System");
+            var preferences=new Preferences { Theme=ThemePreference.Light };preferences.Save(path);check(Preferences.Load(path).Theme==ThemePreference.Light && System.Text.Json.JsonDocument.Parse(File.ReadAllText(path)).RootElement.GetProperty("schemaVersion").GetInt32()==2,"Light theme versioned schema roundtrip");
+            preferences.Theme=ThemePreference.Dark;preferences.Save(path);check(Preferences.Load(path).Theme==ThemePreference.Dark && Directory.GetFiles(root).Length==1,"Atomic theme replacement leaves only settings file");
+            File.WriteAllText(path,"bad-json");check(Preferences.Load(path).Theme==ThemePreference.System,"Malformed theme falls back System");File.WriteAllText(path,"{\"theme\":\"unknown\"}");check(Preferences.Load(path).Theme==ThemePreference.System,"Unknown theme fallback");
+            File.WriteAllText(path,"[]");check(Preferences.Load(path).Theme==ThemePreference.System,"Non-object settings falls back System");
+            File.WriteAllText(path,new string('x',65537));check(Preferences.Load(path).Theme==ThemePreference.System,"Oversized settings rejected");
         }
         finally { if(File.Exists(path)) File.Delete(path);if(Directory.Exists(root)) Directory.Delete(root); }
         await c.Capture();var overlay=Application.Current.Windows.OfType<AnnotationOverlay>().First(w=>w.Frame.Monitor.Primary);overlay.ChooseRegion(new(20,20,600,400));DiscoverabilityChecks.Run(check,c,overlay);overlay.BeginEdit(new(100,100));overlay.CommentInput.Text="synthetic";

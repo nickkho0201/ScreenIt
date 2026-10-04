@@ -11,7 +11,8 @@ internal static class PasteInput
     }
     public static bool IsCurrent(PasteTarget target) => IsWindow(target.Hwnd) && Foreground() == target;
     public static bool IsOwn(PasteTarget target) => target.ProcessId == (uint)Environment.ProcessId;
-    public static bool KeysReleased() => new[] { 0x11, 0x12, 0x56, 0x10, 0x5B, 0x5C }.All(key => (GetAsyncKeyState(key) & 0x8000) == 0);
+    internal static uint TriggerKey { get; set; }=0x56;
+    public static bool KeysReleased() => new[] { 0x11, 0x12, 0x56, 0x10, 0x5B, 0x5C, (int)TriggerKey }.All(key => (GetAsyncKeyState(key) & 0x8000) == 0);
     [StructLayout(LayoutKind.Sequential)] internal struct KeyboardInput { public ushort Vk, Scan; public uint Flags, Time; public UIntPtr Extra; }
     [StructLayout(LayoutKind.Sequential)] private struct MouseInput { public int X, Y; public uint Data, Flags, Time; public UIntPtr Extra; }
     [StructLayout(LayoutKind.Explicit)] internal struct InputUnion { [FieldOffset(0)] public KeyboardInput Keyboard; [FieldOffset(0)] private MouseInput mouse; }

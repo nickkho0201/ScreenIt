@@ -1,4 +1,4 @@
-param([string]$ExecutablePath, [string]$ReportName = 'smoke.json')
+param([string]$ExecutablePath, [string]$ReportName = 'smoke.json', [switch]$CustomBindings)
 $ErrorActionPreference = 'Stop'
 if (Get-Process ScreenIt.App -ErrorAction SilentlyContinue) { throw 'Exit ScreenIt before running the production smoke test.' }
 if (-not ('ScreenItSmoke' -as [type])) {
@@ -64,6 +64,16 @@ $exe = if ($ExecutablePath) { (Resolve-Path -LiteralPath $ExecutablePath).Path }
 if ([IO.Path]::GetFileName($ReportName) -ne $ReportName) { throw 'ReportName must be a filename.' }
 $checks = [Collections.Generic.List[string]]::new()
 $artifacts = Join-Path $repoRoot 'artifacts'; [void][IO.Directory]::CreateDirectory($artifacts)
+# Exercise a deterministic English/default binding configuration, restoring the user's preferences byte-for-byte.
+$settingsPath=Join-Path $env:LOCALAPPDATA 'ScreenIt/settings.json'
+$settingsBytes=if(Test-Path -LiteralPath $settingsPath) { [IO.File]::ReadAllBytes($settingsPath) } else { $null }
+[void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($settingsPath))
+$mods=if($CustomBindings) { 0x4006 } else { 0x4003 }
+$captureKey=if($CustomBindings) { 0x51 } else { 0x53 }
+$pasteKey=if($CustomBindings) { 0x57 } else { 0x56 }
+$clearKey=if($CustomBindings) { 0x45 } else { 0x58 }
+$config=@{schemaVersion=2;theme='dark';language='en';hotkeys=@{capture=@{modifiers=($mods -band 15);key=$captureKey};paste=@{modifiers=($mods -band 15);key=$pasteKey};clear=@{modifiers=($mods -band 15);key=$clearKey}}}
+[IO.File]::WriteAllText($settingsPath,($config | ConvertTo-Json -Depth 5))
 $first = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden -RedirectStandardError (Join-Path $artifacts 'startup-error.txt')
 try {
     $control = [IntPtr]::Zero
@@ -79,11 +89,11 @@ try {
     $checks.Add('Background startup without editor window')
     # HWND becomes visible to enumeration before the constructor finishes startup.
     Start-Sleep -Milliseconds 1500
-    if ([ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,77,0x4003,0x53)) { [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,77); throw 'Expected registered Ctrl+Alt+S.' }
+    if ([ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,77,$mods,$captureKey)) { [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,77); throw 'Expected registered Ctrl+Alt+S.' }
     $checks.Add('Global capture hotkey registered')
-    if ([ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,78,0x4003,0x56)) { [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,78); throw 'Expected registered Ctrl+Alt+V.' }
+    if ([ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,78,$mods,$pasteKey)) { [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,78); throw 'Expected registered Ctrl+Alt+V.' }
     $checks.Add('Global Paste Session hotkey registered')
-    if ([ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,79,0x4003,0x58)) { [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,79); throw 'Expected registered Ctrl+Alt+X.' }
+    if ([ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,79,$mods,$clearKey)) { [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,79); throw 'Expected registered Ctrl+Alt+X.' }
     $checks.Add('Global Clear Session hotkey registered alongside Capture/Paste')
     $clipboardBefore = [ScreenItSmoke]::GetClipboardSequenceNumber()
     [void][ScreenItSmoke]::SendMessage($control,0x312,[IntPtr]2,[IntPtr]::Zero)
@@ -152,21 +162,22 @@ try {
     [void][ScreenItSmoke]::SendMessage($control,0x10,[IntPtr]::Zero,[IntPtr]::Zero)
     if (-not $first.WaitForExit(5000) -or $first.ExitCode -ne 0) { throw 'Production shutdown failed.' }
     $checks.Add('Clean shutdown exit 0')
-    if (-not [ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,77,0x4003,0x53)) { throw 'Capture hotkey not released.' }
+    if (-not [ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,77,$mods,$captureKey)) { throw 'Capture hotkey not released.' }
     [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,77)
     $checks.Add('Capture hotkey released')
-    if (-not [ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,78,0x4003,0x56)) { throw 'Paste Session hotkey not released.' }
+    if (-not [ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,78,$mods,$pasteKey)) { throw 'Paste Session hotkey not released.' }
     [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,78)
     $checks.Add('Paste Session hotkey released')
-    if (-not [ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,79,0x4003,0x58)) { throw 'Clear Session hotkey not released.' }
+    if (-not [ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,79,$mods,$clearKey)) { throw 'Clear Session hotkey not released.' }
     [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,79)
     $checks.Add('Clear Session hotkey released')
-    $report = [ordered]@{status='PASS';count=$checks.Count;checks=$checks;date=[DateTimeOffset]::UtcNow.ToString('O')}
+    $report = [ordered]@{status='PASS';customBindings=[bool]$CustomBindings;count=$checks.Count;checks=$checks;date=[DateTimeOffset]::UtcNow.ToString('O')}
 } catch {
     $report = [ordered]@{status='FAIL';checks=$checks;error=$_.Exception.Message;date=[DateTimeOffset]::UtcNow.ToString('O')}
     throw
 } finally {
     if (-not $first.HasExited) { Stop-Process -Id $first.Id }
+    if($null -ne $settingsBytes) { [IO.File]::WriteAllBytes($settingsPath,$settingsBytes) } elseif(Test-Path -LiteralPath $settingsPath) { Remove-Item -LiteralPath $settingsPath }
     $artifacts = Join-Path $repoRoot 'artifacts'; [void][IO.Directory]::CreateDirectory($artifacts)
     $report | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $artifacts $ReportName) -Encoding utf8
 }

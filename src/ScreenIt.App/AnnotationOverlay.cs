@@ -94,7 +94,7 @@ internal sealed class AnnotationOverlay : Window
         }
         doneButton.Background=Appearance.Current==UiTheme.Dark ? UtilityUi.Accent : UtilityUi.Brush(30,41,59);doneButton.Foreground=Brushes.White;doneButton.Content=UtilityUi.ShortcutCaption("Done","Ctrl+Enter",true);
         if(editorHost.Child is StackPanel panel) panel.Children.OfType<TextBlock>().Last().Foreground=UtilityUi.Muted;
-        Refresh();
+        Refresh();L.Tree(bar);L.Tree(editorHost);
     }
     private IntPtr Hook(IntPtr hwnd,int message,IntPtr wp,IntPtr lp,ref bool handled)
     {
@@ -183,7 +183,7 @@ internal sealed class AnnotationOverlay : Window
     public bool CommitComment()
     {
         if (!Editing) return false;
-        if (string.IsNullOrWhiteSpace(editor.Text)) { error.Text="Type a comment, or press Esc to cancel."; editor.Focus(); return false; }
+        if (string.IsNullOrWhiteSpace(editor.Text)) { error.Text=L.T("Type a comment, or press Esc to cancel."); editor.Focus(); return false; }
         if (editingId.HasValue) { Model.Edit(editingId.Value,editor.Text); Selected=editingId; } else Selected=Model.CreateMarker(editingAnchor,editor.Text).Id;
         CloseEditor(); Tool=Tool.Marker; Refresh(); return true;
     }
@@ -220,7 +220,7 @@ internal sealed class AnnotationOverlay : Window
                 var action=ScreenshotDraft.EnterAction(shift,ctrl);
                 if (action==EditorEnter.Commit) CommitComment();
                 else if (action==EditorEnter.Newline) { int caret=editor.SelectionStart; editor.SelectedText=Environment.NewLine; editor.CaretIndex=caret+Environment.NewLine.Length; }
-                else error.Text="Save or cancel the comment before finishing the screenshot.";
+                else error.Text=L.T("Save or cancel the comment before finishing the screenshot.");
             }
             else return;
             e.Handled=true; return;
@@ -238,7 +238,7 @@ internal sealed class AnnotationOverlay : Window
         e.Handled=true;
     }
     internal void ShowHint(string message) => Message(message);
-    private void Message(string message) { status.Text=message; status.Visibility=Visibility.Visible; LayoutToolbar(); }
+    private void Message(string message) { status.Text=L.T(message); status.Visibility=Visibility.Visible; LayoutToolbar(); }
     private void LayoutToolbar()
     {
         var t=DeviceTransform; bar.Measure(new Size(double.PositiveInfinity,double.PositiveInfinity));
@@ -261,7 +261,7 @@ internal sealed class AnnotationOverlay : Window
         }
         status.Text=!AnnotationMode ? "Drag a region · Space full monitor · Esc cancel" : Editable ? "" : "Continue on the selected monitor";
         status.Visibility=string.IsNullOrEmpty(status.Text) ? Visibility.Collapsed : Visibility.Visible;
-        LayoutToolbar(); surface.Cursor=Cursors.Cross; surface.InvalidateVisual();
+        L.Tree(bar);LayoutToolbar(); surface.Cursor=Cursors.Cross; surface.InvalidateVisual();
     }
     public void ChooseRegion(PxRect region)
     {

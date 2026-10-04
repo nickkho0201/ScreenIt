@@ -28,13 +28,13 @@ internal sealed record PasteOptions
 internal sealed record PasteResult(PasteOutcome Outcome, int ImagesSent, int TotalImages, string Reason)
 {
     public bool PasteAttempted { get; init; }
-    public string Status => Outcome switch
+    public string Status => L.T(Outcome switch
     {
         PasteOutcome.Completed => $"Pasted {ImagesSent} {(ImagesSent == 1 ? "screenshot" : "screenshots")}",
         PasteOutcome.Empty => "Session is empty; nothing pasted",
         PasteOutcome.Busy => "Paste Session is already running",
-        _ => $"Paste stopped after {ImagesSent} of {TotalImages} screenshots. Your ScreenIt session is unchanged. {Reason}"
-    };
+        _ => $"Paste stopped after {ImagesSent} of {TotalImages} screenshots. Your ScreenIt session is unchanged. {L.T(Reason)}"
+    });
 }
 
 // Only delivery boundaries are injectable. No domain, capture or receiver integration lives here.
@@ -65,7 +65,7 @@ internal sealed class PasteSequencer(IPasteDelivery delivery, PasteOptions? opti
         void Guard()
         {
             token.ThrowIfCancellationRequested();
-            if (target.Hwnd == IntPtr.Zero || target.ProcessId == 0 || delivery.IsOwnTarget(target)) throw new PasteAbortedException("Focus a receiver and invoke Ctrl+Alt+V.");
+            if (target.Hwnd == IntPtr.Zero || target.ProcessId == 0 || delivery.IsOwnTarget(target)) throw new PasteAbortedException("Focus a receiver and invoke Paste Session.");
             if (!delivery.IsTargetCurrent(target)) throw new PasteAbortedException("Foreground target changed.");
         }
         try

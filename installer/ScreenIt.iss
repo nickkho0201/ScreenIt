@@ -1,4 +1,4 @@
-#define AppVersion "0.1.0"
+#define AppVersion "0.1.1"
 #ifndef PublishDir
   #define PublishDir "..\artifacts\release\publish"
 #endif
@@ -28,6 +28,7 @@ OutputBaseFilename=ScreenIt-Setup-{#AppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+AppMutex=Local\ScreenIt.MVP
 CloseApplications=no
 RestartApplications=no
 [Languages]

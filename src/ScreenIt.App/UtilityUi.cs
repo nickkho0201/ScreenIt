@@ -28,16 +28,16 @@ internal static class UtilityUi
         focus.Setters.Add(new Setter(Control.BorderBrushProperty, Accent)); template.Triggers.Add(focus);
         var disabled = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };
         disabled.Setters.Add(new Setter(UIElement.OpacityProperty, .4)); template.Triggers.Add(disabled);
-        var tooltip = new ToolTip { Content=hint,Background=Appearance.Palette.Surface,Foreground=Ink,BorderBrush=Appearance.Palette.Border };
-        var button = new Button { Content = label, ToolTip = tooltip, Template = template, MinHeight = 34, Margin = new Thickness(2), FontSize = 13,
+        var tooltip = new ToolTip { Content=L.T(hint),Background=Appearance.Palette.Surface,Foreground=Ink,BorderBrush=Appearance.Palette.Border };
+        var button = new Button { Content = L.T(label), ToolTip = tooltip, Template = template, MinHeight = 34, Margin = new Thickness(2), FontSize = 13,
             Background = Brushes.Transparent, Foreground = Ink, BorderBrush = Brushes.Transparent, BorderThickness = new Thickness(1), Cursor = System.Windows.Input.Cursors.Arrow };
         ToolTipService.SetShowOnDisabled(button,true);
-        AutomationProperties.SetName(button, hint); button.Click += (_,_) => action(); return button;
+        AutomationProperties.SetName(button, L.T(hint)); button.Click += (_,_) => action(); return button;
     }
     internal static StackPanel ShortcutCaption(string label,string key,bool emphasized=false)
     {
         var row=new StackPanel { Orientation=Orientation.Horizontal };
-        row.Children.Add(new TextBlock { Text=label,VerticalAlignment=VerticalAlignment.Center });
+        row.Children.Add(new TextBlock { Text=L.T(label),VerticalAlignment=VerticalAlignment.Center });
         row.Children.Add(new Border { CornerRadius=new CornerRadius(3),BorderThickness=new Thickness(1),
             BorderBrush=emphasized ? Brush(180,188,224) : Appearance.Palette.Border,
             Padding=new Thickness(4,1,4,1),Margin=new Thickness(7,0,0,0),VerticalAlignment=VerticalAlignment.Center,
@@ -53,7 +53,7 @@ internal static class UtilityUi
     {
         var owner=Application.Current?.MainWindow;
         if(owner==null) return;
-        var prompt=new PromptWindow("ScreenIt",text,"OK",cancel:false);prompt.Prepare(owner);prompt.ShowDialog();
+        var prompt=new PromptWindow("ScreenIt",L.T(text),"OK",cancel:false);prompt.Prepare(owner);prompt.ShowDialog();
     }
     public static byte[] IconBytes { get; } = ReadIcon();
     private static byte[] ReadIcon() { using var stream = typeof(UtilityUi).Assembly.GetManifestResourceStream("ScreenIt.Icon")!; using var bytes = new MemoryStream(); stream.CopyTo(bytes); return bytes.ToArray(); }
@@ -117,6 +117,7 @@ internal class PromptWindow : Window
         foreach(var button in new[]{AcceptButton,CancelButton})
             if(button.ToolTip is ToolTip tip) { tip.Background=Appearance.Palette.Surface;tip.Foreground=UtilityUi.Ink;tip.BorderBrush=Appearance.Palette.Border; }
 
+        Title=L.T(Title);L.Tree((DependencyObject)Content);
         var hwnd=new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if(hwnd!=IntPtr.Zero) { int dark=Appearance.Current==UiTheme.Dark ? 1 : 0;DwmSetWindowAttribute(hwnd,20,ref dark,4); }
     }
