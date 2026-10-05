@@ -1,0 +1,183 @@
+# Development
+
+Практический workflow текущего ScreenIt `0.1.1`. Начните с [README](README.md) и [AGENTS](AGENTS.md); runtime flow и ограничения описаны в [ARCHITECTURE](ARCHITECTURE.md), история — в [CHANGELOG](CHANGELOG.md).
+
+## Environment
+
+- Поддерживаемый продукт: Windows 11 x64. Installer требует Windows build ≥22000. Windows 10 не заявлен; интерактивные проверки требуют обычной Windows desktop session с доступными мониторами.
+- .NET 10 SDK: `global.json` задаёт `10.0.100`, `rollForward: latestFeature`, prerelease запрещён. Используйте совместимый stable .NET 10 SDK, проверяя `dotnet --info` и `dotnet --version` из корня.
+- App и Verification: `net10.0-windows`, WPF + WinForms, `PlatformTarget=x64`. Core: `net10.0`. Все три проекта включают warnings-as-errors. Обозначения solution x86 не означают поддержку x86 приложения.
+- Для framework-dependent build/run нужен .NET 10 Windows Desktop runtime x64. SDK включает developer runtime; installer/portable self-contained и не требуют runtime на машине получателя.
+- PowerShell scripts используются для smoke и packaging. PowerShell 7 — практический вариант для этих команд; minimum host version явно не закреплена. `Verify-Installer.ps1`/`Verify-Upgrade.ps1` используют .NET `Path.GetRelativePath`; не считать Windows PowerShell 5.1 проверенным host. Pointer smoke содержит Add-Type references к современным System.Drawing assemblies и тоже требует проверки в выбранном host.
+- Inno Setup **7.1.0**, `ISCC.exe` — только build-time dependency installer. Передавайте полный путь, если нет в PATH.
+- Нет third-party runtime PackageReference. Root `NuGet.Config` очищает package sources; обычный build использует установленные SDK targeting packs. Self-contained publish явно включает nuget.org для Microsoft runtime packs.
+- Publish profile закрепляет .NET Core/Windows Desktop runtime **10.0.12**. Он должен быть доступен из restore/cache, независимо от developer runtime.
+- Git нужен для workflow; GitHub CLI не нужен build/test/package. CLI или GitHub UI можно использовать для публикации только после прямого разрешения владельца; checked-in автоматизации release нет.
+- Python 3 используется только необязательным `assets/generate_icon.py` (standard library): пересоздаёт tracked SVG/ICO и ignored preview. Не запускать ради обычного build.
+
+## Repository structure
+
+| Путь | Назначение |
+|---|---|
+| `ScreenIt.sln` | Core, App, Verification; Debug/Release configs. |
+| `src/ScreenIt.Core/` | Geometry, selection, annotations/draft history, session/comment formatter. |
+| `src/ScreenIt.App/` | Production Windows utility; manifest, embedded icon, publish profile. |
+| `verification/ScreenIt.Verification/` | STA verification executable и subsystem checks; не test-framework проект. |
+| `verification/*.ps1` | Запуск production process и GUI smoke. |
+| `installer/` | Release builder, Inno script, installer/upgrade verification и исторические release notes. |
+| `spikes/clipboard-transfer/` | Archived clipboard format/receiver experiments. |
+| `spikes/capture-overlay/` | Archived capture/DPI/selection experiment. |
+| `spikes/annotation-interaction/` | Archived annotation interaction experiment. |
+| `assets/` | SVG/ICO и генератор icon. |
+| `artifacts/` | Ignored local output/evidence. Не источник текущего кода и не tracked release manifest. |
+
+Spikes — отдельные `.csproj`/entry points, не входят в solution и production dependency graph. Их controls/результаты не следует переносить на production без проверки; подробности в их README/RESULTS. Нет tracked `.github` CI/CD workflow, conventional unit-test runner или release orchestrator.
+
+## Restore, build and run
+
+Все команды ниже выполняются из корня в PowerShell. Сначала проверьте рабочее дерево; перед запуском App/GUI tests завершите собственный ScreenIt через tray, предварительно передав нужную RAM-сессию. Не убивайте процесс владельца автоматически.
+
+```powershell
+git status --short
+dotnet --info
+dotnet restore ScreenIt.sln
+dotnet build ScreenIt.sln -c Release --no-restore
+dotnet run --project src/ScreenIt.App/ScreenIt.App.csproj -c Release --no-build
+```
+
+Эквивалентная сборка с restore: `dotnet build ScreenIt.sln -c Release`. Для Debug замените configuration последовательно. Run запускает tray utility, а не editor startup window. Повторный экземпляр выходит без активации первого. Build не создаёт installer или self-contained ZIP.
+
+Если root NuGet sources не позволяют получить отсутствующий Microsoft targeting pack, проверьте установку SDK. В release builder отдельный явный restore source уже задан; не добавляйте произвольные feeds/dependencies ради обхода ошибки окружения.
+
+## Automated verification
+
+```powershell
+.\verification\ScreenIt.Verification\bin\Release\net10.0-windows\ScreenIt.Verification.exe
+.\verification\Smoke.ps1
+.\verification\Smoke.ps1 -CustomBindings -ReportName custom-hotkeys-smoke.json
+.\verification\SettingsHoverSmoke.ps1 -ExecutablePath .\src\ScreenIt.App\bin\Release\net10.0-windows\ScreenIt.App.exe
+```
+
+`dotnet test` не запускает существующие checks: нет Microsoft.NET.Test.Sdk/xUnit/NUnit/MSTest suite. Verification — executable с собственными assertions, JSON report и exit code 0/1. Нужны actual desktop, свободные hotkeys и **как минимум два монитора**: Program без fallback берёт companion overlay через `First(w => w != selectedWindow)`. Одномониторный запуск текущего полного suite может упасть, хотя продукт способен работать на одном мониторе. В suite также используются крупные fixed crops; фактические размеры мониторов должны их вмещать.
+
+Покрытие:
+
+- Core letters/marker IDs, snapshots Undo/Redo, immutability, Unicode multiline formatter, crop/DPI math, marker geometry и отсутствие comment body в bitmap.
+- Реальные capture/placement на доступных мониторах, same-HWND selection → annotation, cancellation и stress cycles; native counters, software latency и resource checkpoints.
+- Actual clipboard payload bytes/readback, privacy hints, owned temporary lifetime/TTL; fake delivery sequence, focus/modifier/cancellation/error branches и native boundary guards. Suite заменяет clipboard синтетическими данными и не восстанавливает прежнее содержимое.
+- Toast replacement/expiry/noactivate placement/stress; Clear confirmation routes, guards и safe default; theme palette, shortcut discoverability.
+- Preferences/theme-only migration/unknown fields, fake и actual hotkey registration/conflicts, Settings cycles/live theme/language/controls. Updater metadata/hash/launch-order проверяются с fake providers/synthetic downloads без исполнения setup.
+
+`artifacts/verification.json` — default отчёт; создаются PNG previews. Результат относится только к текущему environment/run. Прошлые ignored reports не заменяют повторную проверку.
+
+`Smoke.ps1` проверяет production startup/background HWND, занятость hotkeys, single instance, empty paste/clear без clipboard mutation, WM_HOTKEY route, full-monitor commit, реальные Clear buttons и clean shutdown/released keys. Он посылает Win32 messages и использует UIAutomation, поэтому не подтверждает physical key delivery во всех environments и не автоматизирует third-party receiver.
+
+Smoke временно записывает deterministic EN/dark/default или Ctrl+Shift+Q/W/E configuration, затем восстанавливает исходные settings bytes в finally; при failure может Kill только запущенный им process. Это тестовый cleanup, не product shutdown policy. Pointer smoke аналогично меняет user settings, двигает cursor и проверяет pixel differences normal/hover/pressed; default executable path у него — локальный `artifacts/settings-polish/publish`, поэтому выше путь задан явно. Отчёт/PNG — `artifacts/settings-polish/`.
+
+Только при отдельной необходимости и с пониманием нестабильности внешнего состояния:
+
+```powershell
+.\verification\ScreenIt.Verification\bin\Release\net10.0-windows\ScreenIt.Verification.exe --check-updates
+```
+
+Этот flag делает live GitHub request и **ожидает отсутствие версии новее 0.1.1**. После следующего релиза такой assertion может упасть при корректном updater. Default suite сеть updater не использует.
+
+Не покрыты автоматикой: принятие attachments/text реальным receiver, rollback данных получателя, SmartScreen/обычный setup UX, все physical DPI/HDR/protected-content configs, все lock/sleep/disconnect transitions, OS crash/termination и безопасное завершение всех async races. Manual acceptance обязательна для затронутого flow.
+
+## Manual smoke testing
+
+### Minimum для большинства runtime/UI изменений
+
+1. Запустить одну копию: tray доступен, startup не открывает capture/settings и не делает update check. Второй запуск не создаёт второй tray process.
+2. Tray Capture/double-click и настоящий configured capture hotkey открывают frozen overlays; повторный capture возвращает текущий draft.
+3. Drag region → annotation без дополнительного Enter; Space — целый focused monitor. Проверить marker click/type/Enter, move/edit/delete, arrow/rectangle, Undo/Redo. Comment body остаётся text, не рисуется на image.
+4. Escape gesture/editor не теряет остальной draft; Discard annotated screenshot спрашивает подтверждение. Commit закрывает все overlays, A/B numbering и Added toast соответствуют сессии.
+5. В известном receiver с тестовыми данными вставить A/B + multiline RU/EN comments настоящим hotkey: release keys, image order, отдельные attachments и editable text. Смена foreground останавливает оставшиеся requests; retry может дублировать уже отправленные.
+6. Clear Cancel/Esc/X и default Enter сохраняют session; Confirm удаляет session/rasters и следующий capture начинает A/A1. Settings close возвращает background utility. Exit с session предупреждает; после confirmed exit нет tray/overlays, shortcuts свободны.
+
+Для docs-only change GUI smoke не обязателен, если команды/контракты проверены по источникам и не утверждается новый PASS.
+
+### Дополнительно по подсистеме
+
+| Изменение | Проверки |
+|---|---|
+| Capture/coordinates/interop | Все доступные monitors, mixed DPI, negative origin, края crop/marker/editor, no overlay chrome in output; ресурсные cycles. 150/200%, portrait/HDR помечать непроверенными, если hardware недоступен. |
+| Overlay/lifecycle | Interrupted mouse capture/focus, editing/commit guards, suspended capture после topology/DPI/lock/sleep events; exit во время acquisition/preparation в отдельной тестовой копии. |
+| Clipboard/paste/files | Busy clipboard, замена clipboard между publish/input, held keys, focus/PID change, receiver loss, textless session, partial input; файлы доступны после Clear/exit и чужие generations не удаляются. Clipboard overwrite ожидаем, restore не обещан. |
+| Toasts | Capture скрывает toast до frame, нет focus stealing/click interception, expiry/replacement, warning/partial count, обе темы и monitor work area. |
+| Preferences/hotkeys/UI | Restart persistence, theme-only baseline, malformed/oversized settings, unknown fields, save denial, conflict/duplicate/default reset rollback, EN/RU и System theme changes; user text не переводится. |
+| Installer/updater | Installed/portable detection, equal/older/prerelease exclusion, unavailable/malformed release, invalid/missing/duplicate SHA, Cancel/launch failure, RAM-loss warning и running-copy mutex. Использовать disposable Windows account/VM для реальной install проверки. |
+
+Window capture и Save As в smoke не включаются: соответствующего UI/flow нет. Startup проверяется как background startup; autostart не реализован.
+
+## Packaging
+
+Checked-in builder — [installer/Build-Release.ps1](installer/Build-Release.ps1), профиль — [ReleaseWinX64.pubxml](src/ScreenIt.App/Properties/PublishProfiles/ReleaseWinX64.pubxml), installer — [ScreenIt.iss](installer/ScreenIt.iss). Дополнительные сведения — [installer README](installer/README.md).
+
+```powershell
+.\installer\Build-Release.ps1 -Dotnet dotnet -Iscc 'C:\path\to\Inno Setup 7\ISCC.exe'
+```
+
+Замените пример на существующий compiler path. Builder отказывается работать при существующем `artifacts/release`; после проверки ownership сохраните прежний output отдельно, не удаляйте его вслепую.
+
+Builder выполняет `dotnet publish src/ScreenIt.App/ScreenIt.App.csproj -p:PublishProfile=ReleaseWinX64` с явным nuget.org restore source и output `artifacts/release/publish`. Release, win-x64, self-contained runtime 10.0.12, без single-file/trimming/PDB; затем копирует MIT LICENSE и runtime notices из `$env:NUGET_PACKAGES` либо `%USERPROFILE%\.nuget\packages`, запускает ISCC, создаёт ZIP и SHA256SUMS.
+
+| Artifact | Содержимое |
+|---|---|
+| `artifacts/release/publish/` | App EXE/DLL, Core DLL, deps/runtimeconfig, .NET/Windows Desktop native/managed runtime files, LICENSE и `licenses/`. ICO embedded в App; отдельный assets directory не требуется. |
+| `ScreenIt-Setup-0.1.1.exe` | Per-user Inno installer всего publish tree. |
+| `ScreenIt-0.1.1-win-x64-portable.zip` | Всё содержимое publish без дополнительного enclosing directory. |
+| `SHA256SUMS.txt` | SHA-256 installer и ZIP с exact versioned names, lowercase hash. |
+
+Не ship source, spikes, verification, screenshots/evidence, settings или PDB. Inno включает всё из publish recursively: чистота publish directory обязательна. Byte-for-byte reproducibility архивов/metadata не гарантируется.
+
+После сборки на подготовленном desktop:
+
+```powershell
+.\verification\Smoke.ps1 -ExecutablePath .\artifacts\release\publish\ScreenIt.App.exe -ReportName publish-smoke.json
+.\installer\Verify-Installer.ps1
+```
+
+Вторая команда **реально устанавливает и удаляет** программу; допускает только отсутствующую installation directory, HKCU entry и Start Menu shortcut. Сравнивает каждый publish file hash, version/path/shortcut, выполняет installed smoke, затем uninstall и проверяет preferences byte-for-byte. Вывод — `artifacts/installer-verification.json`, installed smoke и install/uninstall logs. Скрипт не проверяет third-party receiver или обычный installer UI.
+
+## Upgrade testing
+
+Сохранять AppId, mutex, per-user path и settings location. Установка/удаление не должны трогать `%LOCALAPPDATA%\ScreenIt` и clipboard temp. Installer AppMutex блокирует работающую копию; автоматического Kill/restart нет.
+
+Для **закрытой установленной 0.1.0** и сохранённого baseline:
+
+```powershell
+.\installer\Verify-Upgrade.ps1 -BaselineDirectory 'C:\path\to\retained-0.1.0-baseline'
+```
+
+Baseline должен содержать `publish/`, `ScreenIt-Setup-0.1.0.exe` и SHA256SUMS; новая `0.1.1` — в `artifacts/release/`. Default baseline path — `artifacts/release-0.1.0-preserved`. Скрипт проверяет три ключевых installed binary hashes, reapplies baseline installer, затем upgrade installer с проверкой checksums, identity/path/version, preferences hashes, единственного uninstall entry, publish files и upgraded smoke. **Оставляет 0.1.1 установленной**, не удаляет existing installation. Проверка baseline ограничена указанными binaries, не всеми файлами old installation.
+
+Дополнительная ручная проверка в disposable environment:
+
+- Записать old theme preferences; upgrade, первый запуск, сохранение нового language/hotkeys и повторный запуск. Installer preservation byte-for-byte и application migration после Save — разные проверки.
+- Setup/uninstall при запущенной baseline: отказ/предложение закрыть приложение, без автоматического уничтожения RAM session. После ручного выхода повторить.
+- Uninstall/reinstall сохраняют preferences; cancel setup не меняет working version. Portable не устанавливает поверх себя через updater.
+- Download/verification/launch failure сохраняют app/session; Confirm update теряет RAM session только после запуска setup. Завершение setup и повторный запуск проверять руками.
+
+Нет автоматического rollback или сохранения RAM session; explicit previous-version installer не является проверенной downgrade policy. Формат v2 более объёмный, старый loader `0.1.0` принимает файл только до 256 bytes: полный v2 файл может привести к fallback старой темы после downgrade. Не обещать обратную миграцию; сохранять baseline/settings copies в тестовой среде.
+
+## Release workflow (только подготовка, без публикации)
+
+Tracked автоматического CI/CD/release job нет. Ниже checklist из существующих tools и необходимых точек согласования; это не доказательство прошлых удалённых release operations.
+
+1. Проверить `git status`, review scope и [AGENTS](AGENTS.md). `main` — стабильная интеграционная ветка; не выпускать unrelated/непроверенные изменения.
+2. Согласовать version; обновить App csproj `Version`, `AssemblyVersion`, `FileVersion`, `InformationalVersion`, Inno AppVersion, builder ZIP/checksum names, Verify-Installer version/name и Verify-Upgrade version pair. Проверить Updates User-Agent, version-bound SettingsChecks/live assertion, README/README.ru и installer documentation. Manifest identity сейчас отдельно `0.1.0.0`: не использовать её как источник release version и не менять вслепую. Единого central version файла нет.
+3. Обновить CHANGELOG по результату, docs по затронутым контрактам; перенести опубликованные пункты из Unreleased в согласованную версию/дату. `installer/RELEASE-NOTES.md` сейчас только 0.1.0; для нового release нужны актуальные notes.
+4. Restore/build, verification и relevant manual smoke; проверить git diff/status. Закрыть тестовую копию безопасно.
+5. Сохранить previous artifacts, собрать package, проверить содержимое/notice files/SHA и portable startup; выполнить publish/installer/upgrade checks в подходящей тестовой среде.
+6. Передать владельцу version, notes, diff, результаты и ограничения. Commit, push, merge, annotated tag `vX.Y.Z`, GitHub Release и upload — только при прямом разрешении.
+7. При отдельной авторизованной публикации exact stable tag и asset names должны соответствовать updater URL parser. Release должен содержать versioned installer, portable ZIP и SHA256SUMS. После upload сравнить hashes/download и install behavior; факт remote публикации требует отдельной проверки.
+
+## Git workflow
+
+- Всегда начать с `git status`; dirty tree исследовать по diff/происхождению, чужие изменения сохранить.
+- Scoped reviewable changes; минимальный fix без unrelated refactoring, случайных files/settings/release artifacts в commit.
+- `main` — стабильная integration branch. Для новой рабочей ветки default prefix `codex/`, если владелец не задал иначе.
+- Без destructive reset/clean/checkout, удаления чужой работы, force-push или переписывания опубликованной истории без прямого указания.
+- Без push, tag, GitHub Release, публикации installer/package и изменения существующих release artifacts без прямой команды владельца.
+- Handoff rules для installer/updater/data/security changes — в [AGENTS](AGENTS.md). Завершить проверкой `git diff --check`, `git diff` и `git status --short`; untracked документы тоже необходимо прочитать, они не отображаются обычным `git diff`.

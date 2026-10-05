@@ -114,6 +114,8 @@ Compatibility with other applications may vary depending on how they handle Wind
 
 ## Development
 
+Internal documentation: [agent onboarding](AGENTS.md), [runtime architecture](ARCHITECTURE.md), [development and verification](DEVELOPMENT.md), and [changelog](CHANGELOG.md).
+
 Requirements: Windows and **.NET 10 SDK**.
 
 ```powershell
