@@ -1,3 +1,12 @@
+## ScreenIt 0.1.2 — 2026-10-05
+
+- A short notification confirms that ScreenIt is ready to run in the background.
+- Notifications use a compact, content-sized HUD at the bottom center of the relevant monitor work area, with soft fade-in/fade-out and clearer text hierarchy.
+- Long messages wrap; session counts use natural English/Russian wording.
+- Done in the Light annotation toolbar now uses the shared accent styling, with a readable shortcut badge.
+
+Download **ScreenIt-Setup-0.1.2.exe** or **ScreenIt-0.1.2-win-x64-portable.zip**. Both are self-contained for Windows 11 x64; checksums are in **SHA256SUMS.txt**. Preferences are preserved when upgrading from 0.1.1. Sessions remain RAM-only.
+
 ## ScreenIt 0.1.0
 
 First public release.

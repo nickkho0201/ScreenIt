@@ -1,6 +1,6 @@
 # Development
 
-Практический workflow текущего ScreenIt `0.1.1`. Начните с [README](README.md) и [AGENTS](AGENTS.md); runtime flow и ограничения описаны в [ARCHITECTURE](ARCHITECTURE.md), история — в [CHANGELOG](CHANGELOG.md).
+Практический workflow текущего ScreenIt `0.1.2`. Начните с [README](README.md) и [AGENTS](AGENTS.md); runtime flow и ограничения описаны в [ARCHITECTURE](ARCHITECTURE.md), история — в [CHANGELOG](CHANGELOG.md).
 
 ## Environment
 
@@ -70,6 +70,14 @@ dotnet run --project src/ScreenIt.App/ScreenIt.App.csproj -c Release --no-build
 
 `artifacts/verification.json` — default отчёт; создаются PNG previews. Результат относится только к текущему environment/run. Прошлые ignored reports не заменяют повторную проверку.
 
+Для безопасной проверки toast layout/localization при работающей пользовательской копии:
+
+```powershell
+.\verification\ScreenIt.Verification\bin\Release\net10.0-windows\ScreenIt.Verification.exe --toast-static
+```
+
+Этот узкий режим измеряет и рендерит WPF content offscreen, проверяет EN/RU, Dark/Light, wrapping и bottom-center math; не показывает HWND, не создаёт Coordinator, не захватывает desktop, не меняет clipboard/preferences и не регистрирует hotkeys. Отдельные outputs — `artifacts/toast-static-verification.json` и `artifacts/toast-offscreen-preview.png`. Это не PASS native placement/focus/animation lifecycle: соответствующие проверки остаются в полном suite и production smoke с обычными preconditions.
+
 `Smoke.ps1` проверяет production startup/background HWND, занятость hotkeys, single instance, empty paste/clear без clipboard mutation, WM_HOTKEY route, full-monitor commit, реальные Clear buttons и clean shutdown/released keys. Он посылает Win32 messages и использует UIAutomation, поэтому не подтверждает physical key delivery во всех environments и не автоматизирует third-party receiver.
 
 Smoke временно записывает deterministic EN/dark/default или Ctrl+Shift+Q/W/E configuration, затем восстанавливает исходные settings bytes в finally; при failure может Kill только запущенный им process. Это тестовый cleanup, не product shutdown policy. Pointer smoke аналогично меняет user settings, двигает cursor и проверяет pixel differences normal/hover/pressed; default executable path у него — локальный `artifacts/settings-polish/publish`, поэтому выше путь задан явно. Отчёт/PNG — `artifacts/settings-polish/`.
@@ -80,7 +88,7 @@ Smoke временно записывает deterministic EN/dark/default или
 .\verification\ScreenIt.Verification\bin\Release\net10.0-windows\ScreenIt.Verification.exe --check-updates
 ```
 
-Этот flag делает live GitHub request и **ожидает отсутствие версии новее 0.1.1**. После следующего релиза такой assertion может упасть при корректном updater. Default suite сеть updater не использует.
+Этот flag делает live GitHub request и **ожидает отсутствие версии новее 0.1.2**. После следующего релиза такой assertion может упасть при корректном updater. Default suite сеть updater не использует.
 
 Не покрыты автоматикой: принятие attachments/text реальным receiver, rollback данных получателя, SmartScreen/обычный setup UX, все physical DPI/HDR/protected-content configs, все lock/sleep/disconnect transitions, OS crash/termination и безопасное завершение всех async races. Manual acceptance обязательна для затронутого flow.
 
@@ -125,8 +133,8 @@ Builder выполняет `dotnet publish src/ScreenIt.App/ScreenIt.App.csproj 
 | Artifact | Содержимое |
 |---|---|
 | `artifacts/release/publish/` | App EXE/DLL, Core DLL, deps/runtimeconfig, .NET/Windows Desktop native/managed runtime files, LICENSE и `licenses/`. ICO embedded в App; отдельный assets directory не требуется. |
-| `ScreenIt-Setup-0.1.1.exe` | Per-user Inno installer всего publish tree. |
-| `ScreenIt-0.1.1-win-x64-portable.zip` | Всё содержимое publish без дополнительного enclosing directory. |
+| `ScreenIt-Setup-0.1.2.exe` | Per-user Inno installer всего publish tree. |
+| `ScreenIt-0.1.2-win-x64-portable.zip` | Всё содержимое publish без дополнительного enclosing directory. |
 | `SHA256SUMS.txt` | SHA-256 installer и ZIP с exact versioned names, lowercase hash. |
 
 Не ship source, spikes, verification, screenshots/evidence, settings или PDB. Inno включает всё из publish recursively: чистота publish directory обязательна. Byte-for-byte reproducibility архивов/metadata не гарантируется.
@@ -144,13 +152,13 @@ Builder выполняет `dotnet publish src/ScreenIt.App/ScreenIt.App.csproj 
 
 Сохранять AppId, mutex, per-user path и settings location. Установка/удаление не должны трогать `%LOCALAPPDATA%\ScreenIt` и clipboard temp. Installer AppMutex блокирует работающую копию; автоматического Kill/restart нет.
 
-Для **закрытой установленной 0.1.0** и сохранённого baseline:
+Для **закрытой установленной 0.1.1** и сохранённого baseline:
 
 ```powershell
-.\installer\Verify-Upgrade.ps1 -BaselineDirectory 'C:\path\to\retained-0.1.0-baseline'
+.\installer\Verify-Upgrade.ps1 -BaselineDirectory 'C:\path\to\retained-0.1.1-baseline'
 ```
 
-Baseline должен содержать `publish/`, `ScreenIt-Setup-0.1.0.exe` и SHA256SUMS; новая `0.1.1` — в `artifacts/release/`. Default baseline path — `artifacts/release-0.1.0-preserved`. Скрипт проверяет три ключевых installed binary hashes, reapplies baseline installer, затем upgrade installer с проверкой checksums, identity/path/version, preferences hashes, единственного uninstall entry, publish files и upgraded smoke. **Оставляет 0.1.1 установленной**, не удаляет existing installation. Проверка baseline ограничена указанными binaries, не всеми файлами old installation.
+Baseline должен содержать `publish/`, `ScreenIt-Setup-0.1.1.exe` и SHA256SUMS; новая `0.1.2` — в `artifacts/release/`. Default baseline path — `artifacts/release-0.1.1-preserved`. Скрипт проверяет три ключевых installed binary hashes, reapplies baseline installer, затем upgrade installer с проверкой checksums, identity/path/version, preferences hashes, единственного uninstall entry, publish files и upgraded smoke. **Оставляет 0.1.2 установленной**, не удаляет existing installation. Проверка baseline ограничена указанными binaries, не всеми файлами old installation.
 
 Дополнительная ручная проверка в disposable environment:
 
@@ -167,7 +175,7 @@ Tracked автоматического CI/CD/release job нет. Ниже checkl
 
 1. Проверить `git status`, review scope и [AGENTS](AGENTS.md). `main` — стабильная интеграционная ветка; не выпускать unrelated/непроверенные изменения.
 2. Согласовать version; обновить App csproj `Version`, `AssemblyVersion`, `FileVersion`, `InformationalVersion`, Inno AppVersion, builder ZIP/checksum names, Verify-Installer version/name и Verify-Upgrade version pair. Проверить Updates User-Agent, version-bound SettingsChecks/live assertion, README/README.ru и installer documentation. Manifest identity сейчас отдельно `0.1.0.0`: не использовать её как источник release version и не менять вслепую. Единого central version файла нет.
-3. Обновить CHANGELOG по результату, docs по затронутым контрактам; перенести опубликованные пункты из Unreleased в согласованную версию/дату. `installer/RELEASE-NOTES.md` сейчас только 0.1.0; для нового release нужны актуальные notes.
+3. Обновить CHANGELOG по результату, docs по затронутым контрактам; перенести опубликованные пункты из Unreleased в согласованную версию/дату. Обновить `installer/RELEASE-NOTES.md`, сохраняя предыдущие notes как историю.
 4. Restore/build, verification и relevant manual smoke; проверить git diff/status. Закрыть тестовую копию безопасно.
 5. Сохранить previous artifacts, собрать package, проверить содержимое/notice files/SHA и portable startup; выполнить publish/installer/upgrade checks в подходящей тестовой среде.
 6. Передать владельцу version, notes, diff, результаты и ограничения. Commit, push, merge, annotated tag `vX.Y.Z`, GitHub Release и upload — только при прямом разрешении.

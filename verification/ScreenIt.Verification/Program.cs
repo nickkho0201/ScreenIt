@@ -29,10 +29,10 @@ internal static class Verification
         app.Startup += async (_, _) =>
         {
             object report;
-            try { await Run(); if(args.Contains("--check-updates",StringComparer.Ordinal)) { var actual=await new GithubUpdateSource().Check(System.Threading.CancellationToken.None);Check(actual==null,"Explicit live GitHub check: public latest is not newer than 0.1.1; no downgrade"); } report = new { status = "PASS", count = checks.Count, checks, machine = Native.Machine(), monitors = Native.Monitors(), latencyMs = Distribution(latency), resources, toastStress = ToastChecks.Stress, clearStress=ClearChecks.Stress,settingsStress=SettingsChecks.Stress }; }
+            try { if(args.Contains("--toast-static",StringComparer.Ordinal)) ToastChecks.Static(Check);else await Run(); if(args.Contains("--check-updates",StringComparer.Ordinal)) { var actual=await new GithubUpdateSource().Check(System.Threading.CancellationToken.None);Check(actual==null,"Explicit live GitHub check: public latest is not newer than 0.1.2; no downgrade"); } report = new { status = "PASS", count = checks.Count, checks, machine = Native.Machine(), monitors = Native.Monitors(), latencyMs = latency.Count==0 ? null : Distribution(latency), resources, toastStress = ToastChecks.Stress, clearStress=ClearChecks.Stress,settingsStress=SettingsChecks.Stress }; }
             catch (Exception ex) { exit = 1; report = new { status = "FAIL", checks, error = ex.ToString(), resources }; }
             var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../artifacts")); Directory.CreateDirectory(root);
-            File.WriteAllText(Path.Combine(root, "verification.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path.Combine(root, args.Contains("--toast-static",StringComparer.Ordinal) ? "toast-static-verification.json" : "verification.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
             Console.WriteLine(JsonSerializer.Serialize(report)); app.Shutdown();
         };
         app.Run(); return exit;

@@ -26,7 +26,7 @@ internal sealed class Coordinator : IDisposable
     private readonly HotkeyRegistration hotkeys;
     private readonly Forms.ToolStripMenuItem settingsCommand=new("Settings"),moreCommand=new("More"),exitCommand=new("Exit");
     private string topology = "";
-    private bool busy, suspended, disposed;
+    private bool busy, suspended, disposed, startupNotified;
     internal ClearSessionDialog? ClearDialog { get; private set; }
     internal bool ConfirmationOpen => ClearDialog != null;
     private readonly System.Drawing.Icon icon;
@@ -76,6 +76,12 @@ internal sealed class Coordinator : IDisposable
         if(Settings!=null) { if(!Settings.IsVisible) Settings.Show();Settings.WindowState=WindowState.Normal;Settings.Activate();return; }
         var window=new SettingsWindow(this);Settings=window;window.Closed+=(_,_)=> { if(ReferenceEquals(Settings,window)) Settings=null; };
         try { window.Show();window.Activate(); }catch { try { window.Close(); }finally { Settings=null; }throw; }
+    }
+    // Called only by production Application.Startup, after the constructor returned successfully.
+    internal void NotifyStarted()
+    {
+        if(disposed || startupNotified || !tray.Visible) return;
+        startupNotified=true;Toasts.Show(ToastMessage.Started(),primary:true);
     }
     private void LanguageChanged() { if(!disposed) Update(); }
     internal bool ChangePreferences(ThemePreference? theme=null,string? language=null)

@@ -2,7 +2,7 @@ English | [Русский](README.ru.md)
 
 # ScreenIt
 
-**ScreenIt 0.1.1**
+**ScreenIt 0.1.2**
 
 ScreenIt is a local-first Windows screenshot annotation utility designed for quickly showing AI assistants, developers, designers, and teammates exactly what you mean.
 
@@ -20,15 +20,15 @@ Focus your chat/composer and press **Ctrl+Alt+V once**. ScreenIt sequentially pa
 - Arrows, rectangles, and Undo/Redo for the current screenshot.
 - Multi-screenshot sessions: A, B, C… Z, AA…
 - Paste Session and confirmed Clear Session.
-- System/Dark/Light appearance, English/Russian UI, and configurable global shortcuts (0.1.1).
-- Short visual feedback toasts, without sound.
+- System/Dark/Light appearance, English/Russian UI, and configurable global shortcuts (0.1.2).
+- Compact, content-sized feedback above the taskbar with soft fades, including confirmation that ScreenIt is running in the background; without sound.
 - Local-first: no account, cloud, backend, or telemetry.
 
 ## Installation
 
 ### Installer
 
-1. Download **ScreenIt-Setup-0.1.1.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
+1. Download **ScreenIt-Setup-0.1.2.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
 2. Run the installer.
 3. Start ScreenIt from the Start menu.
 4. ScreenIt runs in the system tray.
@@ -39,7 +39,7 @@ Installation is per-user, without mandatory administrator privileges or autostar
 
 ### Portable
 
-Download **ScreenIt-0.1.1-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
+Download **ScreenIt-0.1.2-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
 
 ### Requirements
 
@@ -89,7 +89,7 @@ Paste Session explicitly transfers data to your selected application through Win
 
 Sessions live in RAM. Appearance, language, and global shortcuts are saved locally (schema version 2): `%LOCALAPPDATA%/ScreenIt/settings.json`. Paste creates temporary PNGs under `%TEMP%/ScreenIt/Clipboard-v1`. They remain after paste, Clear, and exit for asynchronous receivers; owned generations older than seven days are cleaned on a later startup.
 
-## Updates (0.1.1)
+## Updates (0.1.2)
 
 Checks are manual: **Settings → About → Check for updates**. Only newer stable versions are offered; older versions are never proposed.
 
@@ -128,7 +128,7 @@ For startup with saved custom shortcuts, run `Smoke.ps1 -CustomBindings -ReportN
 
 Close the running ScreenIt instance before verification/smoke; its RAM session is not saved. Generated evidence stays under ignored `artifacts/`. Automated checks supplement manual acceptance.
 
-Release tooling: **Inno Setup 7.1.0**, build-time only. See [release build instructions](installer/README.md). `spikes/` preserves research history; production does not reference spike projects. The accepted 0.1.0 capture/annotation/paste behavior is preserved in 0.1.1.
+Release tooling: **Inno Setup 7.1.0**, build-time only. See [release build instructions](installer/README.md). `spikes/` preserves research history; production does not reference spike projects. The accepted 0.1.0 capture/annotation/paste behavior is preserved in 0.1.2.
 
 ## License
 

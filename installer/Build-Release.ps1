@@ -19,10 +19,10 @@ try {
     Copy-Item -LiteralPath (Join-Path $packages 'microsoft.windowsdesktop.app.runtime.win-x64/10.0.12/LICENSE') -Destination (Join-Path $notices 'dotnet-desktop-LICENSE.txt')
     & $Iscc "/DPublishDir=$publish" "/DReleaseDir=$release" (Join-Path $PSScriptRoot 'ScreenIt.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
-    $zip = Join-Path $release 'ScreenIt-0.1.1-win-x64-portable.zip'
+    $zip = Join-Path $release 'ScreenIt-0.1.2-win-x64-portable.zip'
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [IO.Compression.ZipFile]::CreateFromDirectory($publish,$zip,[IO.Compression.CompressionLevel]::Optimal,$false)
-    $names = @('ScreenIt-Setup-0.1.1.exe','ScreenIt-0.1.1-win-x64-portable.zip')
+    $names = @('ScreenIt-Setup-0.1.2.exe','ScreenIt-0.1.2-win-x64-portable.zip')
     $sums = foreach($name in $names) { '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $release $name)).Hash.ToLowerInvariant(),$name }
     [IO.File]::WriteAllText((Join-Path $release 'SHA256SUMS.txt'),($sums -join "`n")+"`n",[Text.UTF8Encoding]::new($false))
     Get-Item -LiteralPath ($names | ForEach-Object { Join-Path $release $_ }) | Select-Object Name,Length

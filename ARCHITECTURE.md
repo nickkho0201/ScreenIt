@@ -1,6 +1,6 @@
 # Architecture
 
-Фактическая production-архитектура `v0.1.1` (`98f74b5`), проверенная по исходникам 2026-10-05. Публичное использование — в [README](README.md), команды и проверки — в [DEVELOPMENT](DEVELOPMENT.md), правила изменений — в [AGENTS](AGENTS.md).
+Фактическая production-архитектура версии `0.1.2`, проверенная по исходникам 2026-10-05. Публичное использование — в [README](README.md), команды и проверки — в [DEVELOPMENT](DEVELOPMENT.md), правила изменений — в [AGENTS](AGENTS.md).
 
 ## System overview
 
@@ -50,7 +50,7 @@ Production entry point — `src/ScreenIt.App/Program.cs: Program.Main`; verifica
 1. `[STAThread] Program.Main` создаёт именованный mutex `Local\ScreenIt.MVP`. Второй экземпляр сразу выходит; IPC, активации первого экземпляра и передачи ему аргументов нет. `Local` ограничивает coordination Windows session, а не все пользовательские sessions машины.
 2. Загружаются Preferences, выбираются `L` language и Appearance. Создаётся WPF Application с `ShutdownMode.OnExplicitShutdown`.
 3. Coordinator создаёт скрытое control Window/`HwndSource`, добавляет message hook, регистрирует hotkeys и WTS notifications, создаёт WinForms NotifyIcon/ContextMenuStrip. WPF владеет HWND/DPI initialization; WinForms используется для tray UI.
-4. На startup запускается conservative cleanup clipboard PNG generations. Update check на startup отсутствует. В ожидании действий работает dispatcher/message loop.
+4. На startup запускается conservative cleanup clipboard PNG generations. После успешного возвращения конструктора Coordinator production `Application.Startup` вызывает однократный `NotifyStarted`: локализованный background toast на primary monitor, без Settings/активации. Проверка mutex предшествует созданию Application/Coordinator, поэтому второй process не показывает toast. Update check на startup отсутствует. В ожидании действий работает dispatcher/message loop.
 5. Capture устанавливает `busy`, скрывает toast и Settings, закрывает tray menu, делает render yield и `DwmFlush`, снимает frames в `Task.Run`, проверяет topology и создаёт overlays. После всех `ContentRendered` (timeout 5 секунд) проверяет physical placement и фокусирует primary overlay.
 6. Drag/Space переводит выбранный overlay в annotation mode; Coordinator назначает единственный `Active`. Остальные overlays продолжают показывать frozen monitors, но не редактируют draft.
 7. Commit допускается для текущего Active, вне editing и suspension. Сначала render, затем `Session.Commit`, затем raster pair по GUID. Все overlays закрываются, отображается Added toast. Cancel закрывает временные окна без добавления снимка.
@@ -115,9 +115,9 @@ Foreground change, reheld keys, cancellation и ошибки останавли�
 
 ## Notifications and background UI
 
-Coordinator инициирует ToastMessage после commit, clear, paste outcome; обычный status остаётся также в tray menu/tooltip. ToastService держит одно окно и DispatcherTimer: success 1400 ms, warning 3000 ms, replacement закрывает предыдущее окно. Capture скрывает feedback до acquisition.
+Coordinator инициирует ToastMessage после production startup, commit, clear, paste outcome; обычный status остаётся также в tray menu/tooltip. ToastService держит одно окно: opacity fade-in 150 ms → hold success 1400 ms / warning 3000 ms → fade-out 200 ms → close. Одноразовый DispatcherTimer начинает expiry после fade-in + hold. Tick и completion привязаны к конкретному ToastWindow и проверяют identity Current; replacement, Hide перед capture и Dispose немедленно останавливают/отписывают timer, снимают animation/completion и закрывают старое окно. Dispose идемпотентен и блокирует последующий Show; shutdown не ждёт анимации.
 
-ToastWindow — topmost, layered, toolwindow, noactivate, transparent hit-testing; не интерактивен, не перехватывает keyboard focus. Work area выбирается по capture monitor или paste receiver, DPI читается после размещения HWND. Нет очереди, звука, notification actions или Notification Center. Не-OOM failure показа suppress/debug-log; завершённое действие не откатывается.
+ToastWindow — компактный HUD с нейтральной Dark/Light surface, мягкими border/shadow, status badge 26 DIP и title/detail 13/12 DIP. Surface измеряется по естественному DesiredSize Auto columns (badge + gap + text), без minimum/fixed width; max width 380 DIP, text stack ограничен сверху 308 DIP для wrapping. Shadow gutter добавляет 16 DIP к HWND. Обычная высота surface остаётся 68 DIP, title/detail wrapping при max width увеличивает высоту. Theme/language refresh повторно измеряет layout. HWND остаётся topmost, layered, toolwindow, noactivate, transparent hit-testing; не интерактивен, не перехватывает keyboard focus. Work area выбирается по capture monitor, paste receiver, primary для startup; DPI читается после размещения скрытого HWND на выбранном monitor. Physical bounds центрируются по ширине work area и отступают на 16 DIP от её нижнего края (с clamp для маленькой work area); специального taskbar API нет. Нет очереди, звука, notification actions или Notification Center. Не-OOM failure показа/expiry suppress/debug-log; завершённое действие не откатывается.
 
 ## Settings and hotkeys
 
@@ -189,6 +189,6 @@ Capture catch закрывает overlays и сообщает safe error; commit
 - Нет awaited capture/preparation shutdown и универсального transaction rollback для clipboard, session/raster commit или settings.
 - README сообщает manual PASS для ChatGPT Web sequential paste и текущей 100%/125% mixed-DPI topology с negative origin. Физические 150%/200%, portrait, HDR/protected content и system transitions полностью не подтверждены.
 - Архивный [clipboard RESULTS](spikes/clipboard-transfer/RESULTS.md) в заключительном production note ещё помечает Web acceptance OPEN/NOT TESTED, тогда как текущий README сообщает PASS. Это расхождение evidence chronology; точные receiver versions и обновлённая tracked acceptance matrix отсутствуют. Не расширять совместимость на все приложения.
-- [installer RELEASE-NOTES](installer/RELEASE-NOTES.md) описывает только `0.1.0`, не текущую версию. Локальные ignored artifacts могут содержать дополнительные прошлые отчёты, но не составляют воспроизводимую tracked test history.
-- В manifest assemblyIdentity ещё `0.1.0.0`; App csproj/updater version — `0.1.1.0`/`0.1.1`. Это разные поля; release version берётся из assembly, не manifest.
+- [installer RELEASE-NOTES](installer/RELEASE-NOTES.md) содержит notes текущей версии и историю. Локальные ignored artifacts могут содержать дополнительные прошлые отчёты, но не составляют воспроизводимую tracked test history.
+- В manifest assemblyIdentity ещё `0.1.0.0`; App csproj/updater version — `0.1.2.0`/`0.1.2`. Это разные поля; release version берётся из assembly, не manifest.
 - Installer/app unsigned; checksum и ACL не заменяют publisher signature. CI/CD workflows в tracked repository отсутствуют.

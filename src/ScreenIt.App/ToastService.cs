@@ -3,12 +3,14 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
 internal sealed record ToastMessage(string Title, string Detail = "", bool Warning = false)
 {
     internal static string Screenshots(int count) => $"{count} {(count == 1 ? "screenshot" : "screenshots")}";
-    internal static ToastMessage Added(string letter, int count) => new($"Screenshot {letter} added", "Session · " + Screenshots(count));
+    internal static ToastMessage Added(string letter, int count) => new($"Screenshot {letter} added", Screenshots(count) + " in session");
+    internal static ToastMessage Started() => new("ScreenIt is running in the background");
     internal static ToastMessage Cleared() => new("Session cleared");
     internal static ToastMessage? Paste(PasteResult result, bool comments) => result.Outcome switch
     {
@@ -23,24 +25,42 @@ internal sealed record ToastMessage(string Title, string Detail = "", bool Warni
 // Exactly one short-lived, non-interactive window. No queue, sound, OS notifications or Core dependency.
 internal sealed class ToastService : IDisposable
 {
-    private readonly DispatcherTimer timer = new();
+    private DispatcherTimer? timer;
+    private EventHandler? tick;
+    private bool disposed;
     internal ToastWindow? Current { get; private set; }
     internal ToastMessage? LastShown { get; private set; }
     internal int ShownCount { get; private set; }
     internal static TimeSpan SuccessLifetime => TimeSpan.FromMilliseconds(1400);
     internal static TimeSpan WarningLifetime => TimeSpan.FromMilliseconds(3000);
-    public ToastService() { timer.Tick += Expire; }
-    private void Expire(object? sender, EventArgs args) => Hide();
-    public void Show(ToastMessage message, MonitorData? monitor = null, IntPtr target = default)
+    internal static TimeSpan FadeInDuration => TimeSpan.FromMilliseconds(150);
+    internal static TimeSpan FadeOutDuration => TimeSpan.FromMilliseconds(200);
+    private void StopTimer()
     {
+        if(timer == null) return;
+        timer.Stop();timer.Tick -= tick;timer = null;tick = null;
+    }
+    internal void Expire(ToastWindow window)
+    {
+        if(!ReferenceEquals(Current,window) || disposed) return;
+        StopTimer();
+        try { window.FadeOut(() => { if(ReferenceEquals(Current,window)) Hide(); }); }
+        catch(Exception ex) when(ex is not OutOfMemoryException) { Hide();System.Diagnostics.Debug.WriteLine("ScreenIt toast unavailable: " + ex.GetType().Name); }
+    }
+    public void Show(ToastMessage message, MonitorData? monitor = null, IntPtr target = default, bool primary = false)
+    {
+        if(disposed) return;
         Hide();
         try
         {
-            var area = ToastNative.Area(monitor, target);
+            var area = ToastNative.Area(monitor, target, primary);
             var window = new ToastWindow(message); Current = window;
+            window.Closed += (_,_) => { if(ReferenceEquals(Current,window)) { StopTimer();Current=null; } };
             window.ShowAt(area);
             LastShown = message; ShownCount++;
-            timer.Interval = message.Warning ? WarningLifetime : SuccessLifetime; timer.Start();
+            timer = new DispatcherTimer { Interval = FadeInDuration + (message.Warning ? WarningLifetime : SuccessLifetime) };
+            tick = (_,_) => Expire(window);
+            timer.Tick += tick;timer.Start();
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -48,13 +68,20 @@ internal sealed class ToastService : IDisposable
             System.Diagnostics.Debug.WriteLine("ScreenIt toast unavailable: " + ex.GetType().Name);
         }
     }
-    public void Hide() { timer.Stop(); var old = Current; Current = null; old?.Close(); }
-    public void Dispose() { Hide(); timer.Tick -= Expire; }
+    public void Hide() { StopTimer(); var old = Current; Current = null; old?.Close(); }
+    public void Dispose() { if(disposed) return;disposed=true;Hide(); }
 }
 
 internal sealed class ToastWindow : Window
 {
     private HwndSource? source;
+    private AnimationClock? fade;
+    private EventHandler? fadeCompleted;
+    private PxRect work;
+    private bool placed;
+    internal bool IsFadingOut { get; private set; }
+    internal const double MaxLayoutWidth = 396; // 380 DIP surface + shadow gutter.
+    internal const double LayoutHeight = 84; // 68 DIP minimum surface + shadow gutter.
     internal IntPtr Handle { get; private set; }
     internal ToastMessage Message { get; }
     internal UiTheme AppliedTheme { get; private set; }
@@ -62,32 +89,50 @@ internal sealed class ToastWindow : Window
     {
         Message = message; Title = "ScreenIt feedback"; ShowActivated = false; ShowInTaskbar = false; Focusable = false; IsHitTestVisible = false;
         WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; AllowsTransparency = true; Background = Brushes.Transparent;
-        Width = 364; Height = 112; Topmost = true; WindowStartupLocation = WindowStartupLocation.Manual;
-        var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) }); grid.ColumnDefinitions.Add(new ColumnDefinition());
-        var symbol = new TextBlock { Text = message.Warning ? "!" : "✓", FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = message.Warning ? UtilityUi.Brush(151,85,20) : UtilityUi.Accent };
-        grid.Children.Add(symbol);
-        var text = new StackPanel(); Grid.SetColumn(text,1); grid.Children.Add(text);
-        text.Children.Add(new TextBlock { Text = message.Title, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = UtilityUi.Ink });
-        if (message.Detail.Length != 0) text.Children.Add(new TextBlock { Text = message.Detail, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = UtilityUi.Muted, Margin = new Thickness(0,5,0,0) });
-        Content = new Border { Margin = new Thickness(10), Padding = new Thickness(16,13,16,13), Background = Brushes.White, CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1), BorderBrush = UtilityUi.Brush(203,213,225), Child = grid,
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 14, ShadowDepth = 2, Opacity = .23 } };
+        Height = LayoutHeight; Topmost = true; WindowStartupLocation = WindowStartupLocation.Manual;
+        Opacity=0;
+        var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var symbol = new TextBlock { Text = message.Warning ? "!" : "✓", FontSize = 16, FontWeight = FontWeights.SemiBold, HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center };
+        grid.Children.Add(new Border { Width=26,Height=26,Margin=new Thickness(0,0,12,0),CornerRadius=new CornerRadius(13),HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Center,Child=symbol });
+        // Upper bound only: surface 380 minus padding/border (34), badge (26) and gap (12).
+        var text = new StackPanel { MaxWidth=308, VerticalAlignment=VerticalAlignment.Center }; Grid.SetColumn(text,1); grid.Children.Add(text);
+        text.Children.Add(new TextBlock { Text = message.Title, FontSize = 13, FontWeight = FontWeights.SemiBold, TextWrapping=TextWrapping.Wrap, Foreground = UtilityUi.Ink });
+        if (message.Detail.Length != 0) text.Children.Add(new TextBlock { Text = message.Detail, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = UtilityUi.Muted, Margin = new Thickness(0,4,0,0) });
+        Content = new Border { Margin = new Thickness(8), MaxWidth=380, MinHeight=68, Padding = new Thickness(16,10,16,10), Background = Brushes.White, CornerRadius = new CornerRadius(15), BorderThickness = new Thickness(1), Child = grid,
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 12, ShadowDepth = 2, Opacity = .18 } };
         ApplyTheme();
         SourceInitialized += (_,_) =>
         {
             Handle = new WindowInteropHelper(this).Handle; source = HwndSource.FromHwnd(Handle)!;
             source.AddHook(Hook); ToastNative.Configure(Handle);
         };
-        Closed += (_,_) => { if (source != null) { source.RemoveHook(Hook); source.Dispose(); source = null; } Content = null; };
+        Closed += (_,_) => { StopAnimation();if (source != null) { source.RemoveHook(Hook); source.Dispose(); source = null; } placed=false;Content = null; };
     }
     internal void ApplyTheme()
     {
         AppliedTheme=Appearance.Current;
         if(Content is not Border border || border.Child is not Grid grid) return;
-        border.Background=Appearance.Palette.Surface;border.BorderBrush=Appearance.Palette.Border;
-        grid.Children.OfType<TextBlock>().First().Foreground=Message.Warning ? Appearance.Palette.Warning : Appearance.Palette.AccentText;
+        border.Background=AppliedTheme==UiTheme.Dark ? UtilityUi.Brush(34,35,39) : UtilityUi.Brush(250,250,251);
+        border.BorderBrush=new SolidColorBrush(Color.FromArgb(18,Appearance.Palette.Text.Color.R,Appearance.Palette.Text.Color.G,Appearance.Palette.Text.Color.B));
+        var badge=grid.Children.OfType<Border>().Single();var accent=Message.Warning ? Appearance.Palette.Warning : Appearance.Palette.AccentText;
+        badge.Background=new SolidColorBrush(Color.FromArgb(26,accent.Color.R,accent.Color.G,accent.Color.B));
+        ((TextBlock)badge.Child).Foreground=accent;
         var blocks=grid.Children.OfType<StackPanel>().Single().Children.OfType<TextBlock>().ToArray();
         blocks[0].Text=L.T(Message.Title);if(blocks.Length>1) blocks[1].Text=L.T(Message.Detail);
         blocks[0].Foreground=UtilityUi.Ink;foreach(var block in blocks.Skip(1)) block.Foreground=UtilityUi.Muted;
+        if(placed) PlaceContent();
+    }
+    private void StopAnimation()
+    {
+        if(fade != null && fadeCompleted != null) fade.Completed -= fadeCompleted;
+        fade?.Controller?.Remove();ApplyAnimationClock(OpacityProperty,null);fade=null;fadeCompleted=null;
+    }
+    internal void FadeOut(Action completed)
+    {
+        double opacity=Opacity;StopAnimation();Opacity=opacity;IsFadingOut=true;
+        fade=(AnimationClock)new DoubleAnimation(opacity,0,ToastService.FadeOutDuration).CreateClock(true);
+        fadeCompleted=(_,_)=>completed();fade.Completed+=fadeCompleted;
+        ApplyAnimationClock(OpacityProperty,fade);
     }
     private IntPtr Hook(IntPtr hwnd,int msg,IntPtr wp,IntPtr lp,ref bool handled)
     {
@@ -97,13 +142,31 @@ internal sealed class ToastWindow : Window
     }
     internal void ShowAt(PxRect work)
     {
+        this.work=work;
         new WindowInteropHelper(this).EnsureHandle();
         // Move hidden HWND to the chosen physical monitor before reading its actual DPI.
         ToastNative.Place(Handle,new(work.X,work.Y,1,1));
-        var scale = Native.GetDpiForWindow(Handle)/96.0;
-        var bounds = ToastNative.Bounds(work,scale);
-        Width = bounds.Width/scale; Height = bounds.Height/scale;
-        Show(); ToastNative.Place(Handle,bounds);
+        PlaceContent();Show();PlaceContent();placed=true;
+        fade=(AnimationClock)new DoubleAnimation(0,1,ToastService.FadeInDuration).CreateClock(true);
+        Opacity=1;ApplyAnimationClock(OpacityProperty,fade);
+    }
+    private void PlaceContent()
+    {
+        var scale=Native.GetDpiForWindow(Handle)/96.0;
+        var available=ToastNative.Bounds(work,scale);
+        var size=MeasureContent(available.Width/scale);
+        var bounds=ToastNative.Bounds(work,scale,size.Width,size.Height);
+        Width=bounds.Width/scale;
+        // Re-measure wrapping at the actual pixel-rounded HWND width before centering.
+        size=MeasureContent(Width);
+        bounds=ToastNative.Bounds(work,scale,Width,size.Height);
+        Height=bounds.Height/scale;ToastNative.Place(Handle,bounds);
+    }
+    internal Size MeasureContent(double availableWidth)
+    {
+        var content=(FrameworkElement)Content;
+        content.Measure(new Size(Math.Min(MaxLayoutWidth,availableWidth),double.PositiveInfinity));
+        return new Size(Math.Min(availableWidth,content.DesiredSize.Width),Math.Max(LayoutHeight,content.DesiredSize.Height));
     }
 }
 
@@ -115,21 +178,21 @@ internal static class ToastNative
         public int Size; public Native.RECT Monitor,Work; public uint Flags;
         [MarshalAs(UnmanagedType.ByValTStr,SizeConst = 32)] public string Device;
     }
-    internal static PxRect Area(MonitorData? monitor,IntPtr target)
+    internal static PxRect Area(MonitorData? monitor,IntPtr target,bool primary=false)
     {
         IntPtr handle;
         if (monitor != null) handle = MonitorFromPoint(new Point { X = monitor.Left+monitor.Width/2, Y = monitor.Top+monitor.Height/2 },2);
-        else handle = MonitorFromWindow(target != IntPtr.Zero ? target : PasteInput.Foreground().Hwnd,1); // primary if no window
+        else handle = MonitorFromWindow(primary ? IntPtr.Zero : target != IntPtr.Zero ? target : PasteInput.Foreground().Hwnd,1); // primary if no window
         var info = new Info { Size = Marshal.SizeOf<Info>(), Device = "" };
         if (handle == IntPtr.Zero || !GetMonitorInfoW(handle,ref info)) throw new InvalidOperationException("Toast work area unavailable.");
         return new(info.Work.Left,info.Work.Top,info.Work.Right-info.Work.Left,info.Work.Bottom-info.Work.Top);
     }
-    internal static PxRect Bounds(PxRect work,double scale)
+    internal static PxRect Bounds(PxRect work,double scale,double widthDip=ToastWindow.MaxLayoutWidth,double heightDip=ToastWindow.LayoutHeight)
     {
         int margin = Math.Min((int)Math.Round(16*scale),Math.Max(0,Math.Min(work.Width,work.Height)/4));
-        int width = Math.Max(1,Math.Min((int)Math.Round(364*scale),work.Width-2*margin));
-        int height = Math.Max(1,Math.Min((int)Math.Round(112*scale),work.Height-2*margin));
-        return new(work.X+work.Width-width-margin,work.Y+work.Height-height-margin,width,height);
+        int width = Math.Max(1,Math.Min((int)Math.Round(widthDip*scale),work.Width-2*margin));
+        int height = Math.Max(1,Math.Min((int)Math.Round(heightDip*scale),work.Height-2*margin));
+        return new(work.X+(work.Width-width)/2,work.Y+work.Height-height-margin,width,height);
     }
     internal static void Configure(IntPtr hwnd)
     {

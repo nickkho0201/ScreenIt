@@ -135,6 +135,9 @@ Session: {0} screenshot|Сессия: {0} снимок
 Session: {0} screenshots|Сессия: {0} снимка(ов)
 Session · {0} screenshot|Сессия · {0} снимок
 Session · {0} screenshots|Сессия · {0} снимка(ов)
+{0} screenshot in session|{0} снимок в сессии
+{0} screenshots in session|{0} снимка(ов) в сессии
+ScreenIt is running in the background|ScreenIt запущен в фоне
 Screenshot {0} added|Снимок {0} добавлен
 Session cleared|Сессия очищена
 Session is already empty|Сессия уже пуста

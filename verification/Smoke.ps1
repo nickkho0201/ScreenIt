@@ -14,6 +14,8 @@ delegate bool Callback(IntPtr hwnd,IntPtr data);
 [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd,StringBuilder text,int size);
 [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd,StringBuilder text,int size);
 [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+[DllImport("user32.dll")] public static extern IntPtr GetWindowLongPtrW(IntPtr hwnd,int index);
 [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint msg,IntPtr wp,IntPtr lp);
 [DllImport("user32.dll",SetLastError=true)] public static extern bool RegisterHotKey(IntPtr hwnd,int id,uint mods,uint key);
 [DllImport("user32.dll")] public static extern bool UnregisterHotKey(IntPtr hwnd,int id);
@@ -74,6 +76,7 @@ $pasteKey=if($CustomBindings) { 0x57 } else { 0x56 }
 $clearKey=if($CustomBindings) { 0x45 } else { 0x58 }
 $config=@{schemaVersion=2;theme='dark';language='en';hotkeys=@{capture=@{modifiers=($mods -band 15);key=$captureKey};paste=@{modifiers=($mods -band 15);key=$pasteKey};clear=@{modifiers=($mods -band 15);key=$clearKey}}}
 [IO.File]::WriteAllText($settingsPath,($config | ConvertTo-Json -Depth 5))
+$startupForeground = [ScreenItSmoke]::GetForegroundWindow()
 $first = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden -RedirectStandardError (Join-Path $artifacts 'startup-error.txt')
 try {
     $control = [IntPtr]::Zero
@@ -85,16 +88,28 @@ try {
         if ($null -eq $loaded -or $loaded.FileName -ne (Join-Path ([IO.Path]::GetDirectoryName($exe)) 'coreclr.dll')) { throw 'Self-contained runtime not loaded from package.' }
         $checks.Add('Self-contained CoreCLR loaded from published/installed application directory')
     }
-    if ([ScreenItSmoke]::VisibleWpf($first.Id).Length -ne 0) { throw 'Unexpected persistent WPF startup window.' }
-    $checks.Add('Background startup without editor window')
-    # HWND becomes visible to enumeration before the constructor finishes startup.
-    Start-Sleep -Milliseconds 1500
+    $startupToast = Wait-SmokeWindow $first.Id 'ScreenIt is running in the background'
+    if ([ScreenItSmoke]::VisibleWpf($first.Id).Length -ne 1 -or ([ScreenItSmoke]::GetWindowLongPtrW($startupToast,-20).ToInt64() -band 0x080800A0) -ne 0x080800A0) { throw 'Startup must show only transient noactivate/click-through feedback.' }
+    if ([ScreenItSmoke]::GetForegroundWindow() -ne $startupForeground) { throw 'Startup changed foreground.' }
+    $checks.Add('Background startup shows one non-interactive localized toast without foreground change')
     if ([ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,77,$mods,$captureKey)) { [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,77); throw 'Expected registered Ctrl+Alt+S.' }
     $checks.Add('Global capture hotkey registered')
     if ([ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,78,$mods,$pasteKey)) { [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,78); throw 'Expected registered Ctrl+Alt+V.' }
     $checks.Add('Global Paste Session hotkey registered')
     if ([ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,79,$mods,$clearKey)) { [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,79); throw 'Expected registered Ctrl+Alt+X.' }
     $checks.Add('Global Clear Session hotkey registered alongside Capture/Paste')
+    $second = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden
+    $secondDeadline = [DateTime]::UtcNow.AddSeconds(3)
+    while (-not $second.HasExited -and [DateTime]::UtcNow -lt $secondDeadline) {
+        if ([ScreenItSmoke]::VisibleWpf($second.Id).Length -ne 0) { throw 'Mutex-rejected process showed a window/toast.' }
+        Start-Sleep -Milliseconds 10
+    }
+    if (-not $second.HasExited -or $second.ExitCode -ne 0) { throw 'Second process did not exit normally.' }
+    $first.Refresh(); if ($first.HasExited) { throw 'Original instance stopped.' }
+    $checks.Add('Single instance: second exits silently, first alive')
+    for ($i=0; $i -lt 100 -and [ScreenItSmoke]::VisibleWpf($first.Id).Length -ne 0; $i++) { Start-Sleep -Milliseconds 50 }
+    if ([ScreenItSmoke]::VisibleWpf($first.Id).Length -ne 0) { throw 'Unexpected persistent WPF startup window.' }
+    $checks.Add('Startup toast expires back to background without editor/settings')
     $clipboardBefore = [ScreenItSmoke]::GetClipboardSequenceNumber()
     [void][ScreenItSmoke]::SendMessage($control,0x312,[IntPtr]2,[IntPtr]::Zero)
     Start-Sleep -Milliseconds 100
@@ -104,10 +119,6 @@ try {
     Start-Sleep -Milliseconds 100
     if ([ScreenItSmoke]::GetClipboardSequenceNumber() -ne $clipboardBefore -or [ScreenItSmoke]::VisibleWpf($first.Id).Length -ne 0) { throw 'Empty Clear changed clipboard or opened confirmation.' }
     $checks.Add('Empty Clear hotkey leaves clipboard intact without confirmation')
-    $second = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden
-    if (-not $second.WaitForExit(3000) -or $second.ExitCode -ne 0) { throw 'Second process did not exit normally.' }
-    $first.Refresh(); if ($first.HasExited) { throw 'Original instance stopped.' }
-    $checks.Add('Single instance: second exits 0, first alive')
     [void][ScreenItSmoke]::SendMessage($control,0x312,[IntPtr]1,[IntPtr]::Zero)
     $overlays = @()
     for ($i=0; $i -lt 100 -and $overlays.Length -eq 0; $i++) { Start-Sleep -Milliseconds 50; $overlays = [ScreenItSmoke]::VisibleWpf($first.Id) }

@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -24,6 +25,27 @@ internal static class AppearanceChecks
         }
         finally { if(File.Exists(path)) File.Delete(path);if(Directory.Exists(root)) Directory.Delete(root); }
         await c.Capture();var overlay=Application.Current.Windows.OfType<AnnotationOverlay>().First(w=>w.Frame.Monitor.Primary);overlay.ChooseRegion(new(20,20,600,400));DiscoverabilityChecks.Run(check,c,overlay);overlay.BeginEdit(new(100,100));overlay.CommentInput.Text="synthetic";
+        var priorSystemReader=Appearance.ReadSystem;var priorPreference=Appearance.Preference;
+        try
+        {
+            foreach(var (preference,effective) in new[]{(ThemePreference.Light,UiTheme.Light),(ThemePreference.Dark,UiTheme.Dark),(ThemePreference.System,UiTheme.Light),(ThemePreference.System,UiTheme.Dark)})
+            {
+                Appearance.ReadSystem=()=>effective;Appearance.Choose(preference);
+                var done=overlay.ToolbarButtons.Single(b=>((ToolTip)b.ToolTip).Content.Equals("Done (Ctrl+Enter)"));
+                var marker=overlay.ToolbarButtons.First();
+                string state=preference+"/"+effective;
+                check(overlay.AppliedTheme==effective && done.Background==UtilityUi.Accent && done.Background==marker.Background && done.Foreground==marker.Foreground && done.BorderBrush==marker.BorderBrush,"Done shares active Marker accent style "+state);
+                var doneBadge=(Border)((StackPanel)done.Content).Children[1];var markerBadge=(Border)((StackPanel)marker.Content).Children[1];
+                check(((TextBlock)doneBadge.Child).Text=="Ctrl+Enter" && ((TextBlock)doneBadge.Child).Foreground==((TextBlock)markerBadge.Child).Foreground && ((SolidColorBrush)doneBadge.BorderBrush).Color==((SolidColorBrush)markerBadge.BorderBrush).Color,"Done shortcut badge shares emphasized Marker caption "+state);
+                var triggers=done.Template.Triggers.OfType<Trigger>().ToArray();
+                check(triggers.Where(t=>t.Property==UIElement.IsMouseOverProperty).SelectMany(t=>t.Setters.OfType<Setter>()).Any(s=>s.Property==Control.BorderBrushProperty && s.Value==UtilityUi.Accent),"Done hover retains common accent border "+state);
+                check(!triggers.Any(t=>t.Property==System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty),"Done pressed keeps normal accent through unchanged common template "+state);
+                bool enabled=done.IsEnabled;
+                try { done.IsEnabled=false;check(done.Opacity==.4 && done.Background==UtilityUi.Accent,"Done forced disabled retains accent with shared opacity "+state); }
+                finally { done.IsEnabled=enabled; }
+            }
+        }
+        finally { Appearance.ReadSystem=priorSystemReader;Appearance.Choose(priorPreference); }
         foreach(var theme in new[]{UiTheme.Light,UiTheme.Dark})
         {
             Appearance.Select(theme);check(overlay.AppliedTheme==theme && overlay.Editing && overlay.CommentInput.Text=="synthetic","Live overlay theme preserves edit "+theme);

@@ -13,6 +13,7 @@ internal static class Program
             L.Select(preferences.Language);Appearance.Choose(preferences.Theme);
             var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             using var coordinator = new Coordinator(preferences:preferences);
+            application.Startup += (_,_) => coordinator.NotifyStarted();
             application.DispatcherUnhandledException += (_, e) =>
             {
                 e.Handled = true;

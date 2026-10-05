@@ -92,7 +92,7 @@ internal sealed class AnnotationOverlay : Window
             button.Foreground=UtilityUi.Ink;
             if(button.ToolTip is ToolTip tip) { tip.Background=Appearance.Palette.Surface;tip.Foreground=UtilityUi.Ink;tip.BorderBrush=Appearance.Palette.Border; }
         }
-        doneButton.Background=Appearance.Current==UiTheme.Dark ? UtilityUi.Accent : UtilityUi.Brush(30,41,59);doneButton.Foreground=Brushes.White;doneButton.Content=UtilityUi.ShortcutCaption("Done","Ctrl+Enter",true);
+        doneButton.Background=UtilityUi.Accent;doneButton.Foreground=Brushes.White;doneButton.Content=UtilityUi.ShortcutCaption("Done","Ctrl+Enter",true);
         if(editorHost.Child is StackPanel panel) panel.Children.OfType<TextBlock>().Last().Foreground=UtilityUi.Muted;
         Refresh();L.Tree(bar);L.Tree(editorHost);
     }

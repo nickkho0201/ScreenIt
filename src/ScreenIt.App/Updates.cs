@@ -41,7 +41,7 @@ internal sealed class GithubUpdateSource : IUpdateSource
     private static HttpClient Client()
     {
         var client=new HttpClient(new HttpClientHandler { AllowAutoRedirect=false }) { Timeout=TimeSpan.FromMinutes(5) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("ScreenIt/0.1.1");return client;
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("ScreenIt/0.1.2");return client;
     }
     public async Task<UpdateRelease?> Check(CancellationToken token)
     {
