@@ -4,6 +4,9 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
+using System.Windows.Documents;
 
 internal sealed class AnnotationOverlay : Window
 {
@@ -18,6 +21,35 @@ internal sealed class AnnotationOverlay : Window
     public readonly TaskCompletionSource Rendered = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Coordinator owner;
     private readonly Surface surface;
+    private readonly SelectionGlow glow;
+    private readonly TextBlock modifierHint=new() { FontSize=12 };
+    private readonly InlineUIContainer modifierInline;
+    private readonly DropShadowEffect hintGlow=new() { ShadowDepth=0,BlurRadius=10,Opacity=0 };
+    internal Func<bool> AnnotationHeld { get; set; }
+    internal bool ModifierActive { get; private set; }
+    internal string ModifierHint => modifierHint.Text;
+    private static readonly DependencyProperty GlowOpacityProperty=DependencyProperty.Register("GlowOpacity",typeof(double),typeof(AnnotationOverlay),new PropertyMetadata(0.0,GlowChanged));
+    private static readonly DependencyProperty GlowStrengthProperty=DependencyProperty.Register("GlowStrength",typeof(double),typeof(AnnotationOverlay),new PropertyMetadata(1.0,GlowChanged));
+    private static void GlowChanged(DependencyObject source,DependencyPropertyChangedEventArgs e)
+    {
+        var window=(AnnotationOverlay)source;window.glow?.InvalidateVisual();
+        window.hintGlow.Opacity=.65*(double)window.GetValue(GlowOpacityProperty)*(double)window.GetValue(GlowStrengthProperty);
+    }
+    internal void UpdateModifierVisual()
+    {
+        bool active=!AnnotationMode && IsActive && AnnotationHeld();
+        if(active==ModifierActive) return;ModifierActive=active;
+        modifierHint.Foreground=active ? Appearance.Palette.AccentText : UtilityUi.Muted;
+        bool animate=SystemParameters.ClientAreaAnimation;
+        double current=(double)GetValue(GlowOpacityProperty);
+        BeginAnimation(GlowOpacityProperty,null);SetValue(GlowOpacityProperty,active ? 1.0 : 0.0);
+        BeginAnimation(GlowStrengthProperty,null);SetValue(GlowStrengthProperty,1.0);
+        if(animate)
+        {
+            BeginAnimation(GlowOpacityProperty,new DoubleAnimation(current,active ? 1 : 0,TimeSpan.FromMilliseconds(140)) { FillBehavior=FillBehavior.Stop });
+            if(active) BeginAnimation(GlowStrengthProperty,new DoubleAnimation(.55,1,TimeSpan.FromMilliseconds(750)) { AutoReverse=true,RepeatBehavior=RepeatBehavior.Forever,EasingFunction=new SineEase { EasingMode=EasingMode.EaseInOut } });
+        }
+    }
     private readonly Canvas ui = new();
     private readonly TextBlock status = new() { Foreground = UtilityUi.Muted, FontSize = 12, Margin = new Thickness(10,5,10,5), TextWrapping = TextWrapping.Wrap };
     private readonly Border editorHost, bar;
@@ -47,9 +79,12 @@ internal sealed class AnnotationOverlay : Window
     public AnnotationOverlay(Coordinator owner, Frame frame)
     {
         this.owner = owner; Frame = frame; Icon = UtilityUi.WindowIcon();
+        AnnotationHeld=()=>ModifierDown(owner.Preferences.AnnotationModifier);
         WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; ShowInTaskbar = false; Topmost = true; ShowActivated = false;
         Width = frame.Monitor.Width * 96.0 / frame.Monitor.EffectiveDpi; Height = frame.Monitor.Height * 96.0 / frame.Monitor.EffectiveDpi;
-        var root = new Grid { Background = Brushes.Black }; root.Children.Add(surface = new Surface(this) { Focusable = true }); root.Children.Add(ui); Content = root;
+        var root = new Grid { Background = Brushes.Black }; root.Children.Add(surface = new Surface(this) { Focusable = true });root.Children.Add(glow=new SelectionGlow(this) { IsHitTestVisible=false }); root.Children.Add(ui); Content = root;
+        modifierHint.Effect=hintGlow;
+        modifierInline=new InlineUIContainer(modifierHint) { BaselineAlignment=BaselineAlignment.Center };
         RenderOptions.SetBitmapScalingMode(surface, BitmapScalingMode.NearestNeighbor);
         var tools = new StackPanel { Orientation = Orientation.Horizontal };
         var panel = new StackPanel(); panel.Children.Add(tools); panel.Children.Add(status);
@@ -73,13 +108,17 @@ internal sealed class AnnotationOverlay : Window
         ui.Children.Add(editorHost); Panel.SetZIndex(editorHost,2);
         SourceInitialized += (_,_)=> { source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)!; source.AddHook(Hook); Native.Place(source.Handle,Frame.Monitor); };
         ContentRendered += (_,_)=> { ready = true; LayoutToolbar(); Rendered.TrySetResult(); };
-        Deactivated += (_,_)=>InterruptGesture();
+        Deactivated += (_,_)=> { InterruptGesture();UpdateModifierVisual(); };
+        Activated += (_,_)=>UpdateModifierVisual();
         Closing += (_,e)=> { if (!ClosingByApp) { e.Cancel = true; Dispatcher.BeginInvoke(()=>owner.Cancel()); } };
-        Closed += (_,_)=> { if (source != null) { source.RemoveHook(Hook); source.Dispose(); source = null; } editor.Text = ""; Content = null; };
+        Closed += (_,_)=> { BeginAnimation(GlowOpacityProperty,null);BeginAnimation(GlowStrengthProperty,null);if (source != null) { source.RemoveHook(Hook); source.Dispose(); source = null; } editor.Text = ""; Content = null; };
         PreviewKeyDown += Keys; surface.MouseLeftButtonDown += Down;
+        PreviewKeyUp+=(_,_)=>UpdateModifierVisual();
         surface.MouseMove += (_,e)=>MovePointer(InputPoint(e)); surface.MouseLeftButtonUp += (_,e)=>EndPointer(InputPoint(e));
         surface.LostMouseCapture += (_,_)=>InterruptGesture(); ApplyTheme();
     }
+    private static bool ModifierDown(AnnotationModifier modifier) => (GetAsyncKeyState(modifier switch { AnnotationModifier.Ctrl=>0x11,AnnotationModifier.Shift=>0x10,_=>0x12 })&0x8000)!=0;
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
     internal void ApplyTheme()
     {
         AppliedTheme=Appearance.Current;
@@ -87,6 +126,8 @@ internal sealed class AnnotationOverlay : Window
         bar.BorderBrush=editorHost.BorderBrush=editor.BorderBrush=Appearance.Palette.Border;
         editor.Background=Appearance.Palette.Editor;editor.Foreground=UtilityUi.Ink;editor.CaretBrush=UtilityUi.Ink;
         status.Foreground=UtilityUi.Muted;editorTitle.Foreground=Appearance.Palette.AccentText;error.Foreground=Appearance.Palette.Warning;
+        hintGlow.Color=((SolidColorBrush)UtilityUi.Accent).Color;
+        modifierHint.Foreground=ModifierActive ? Appearance.Palette.AccentText : UtilityUi.Muted;
         foreach(var button in annotationButtons)
         {
             button.Foreground=UtilityUi.Ink;
@@ -94,7 +135,7 @@ internal sealed class AnnotationOverlay : Window
         }
         doneButton.Background=UtilityUi.Accent;doneButton.Foreground=Brushes.White;doneButton.Content=UtilityUi.ShortcutCaption("Done","Ctrl+Enter",true);
         if(editorHost.Child is StackPanel panel) panel.Children.OfType<TextBlock>().Last().Foreground=UtilityUi.Muted;
-        Refresh();L.Tree(bar);L.Tree(editorHost);
+        Refresh();L.Tree(editorHost);
     }
     private IntPtr Hook(IntPtr hwnd,int message,IntPtr wp,IntPtr lp,ref bool handled)
     {
@@ -150,8 +191,9 @@ internal sealed class AnnotationOverlay : Window
             if (!RegionSelection.Active) return;
             RegionSelection.Move(p,Frame.Monitor.Width,Frame.Monitor.Height);
             bool valid = RegionSelection.Preview is { Width: >= 2, Height: >= 2 };
+            bool annotate=AnnotationHeld();
             RegionSelection.End(p,Frame.Monitor.Width,Frame.Monitor.Height); surface.ReleaseMouseCapture();
-            if (valid && RegionSelection.Completed is { } region) ChooseRegion(region); else Refresh();
+            if (valid && RegionSelection.Completed is { } region) CompleteSelection(region,annotate); else Refresh();
             return;
         }
         if (!dragging) return; MovePointer(p);
@@ -203,10 +245,11 @@ internal sealed class AnnotationOverlay : Window
     public void Switch(Tool tool) { if (Editing) { Message("Save or cancel the comment first."); return; } InterruptGesture(); Tool=tool; Selected=null; surface.Focus(); Refresh(); }
     private void Keys(object sender,KeyEventArgs e)
     {
+        UpdateModifierVisual();
         if (!AnnotationMode)
         {
             if (e.Key==Key.Escape) { if (RegionSelection.Active) InterruptGesture(); else owner.Cancel(); }
-            else if (e.Key==Key.Space) { InterruptGesture(); owner.SelectMonitor(this); RegionSelection.Full(Frame.Monitor.Width,Frame.Monitor.Height); ChooseRegion(RegionSelection.Completed!.Value); }
+            else if ((e.Key==Key.System ? e.SystemKey : e.Key)==Key.Space) { bool annotate=AnnotationHeld();InterruptGesture(); owner.SelectMonitor(this); RegionSelection.Full(Frame.Monitor.Width,Frame.Monitor.Height); CompleteSelection(RegionSelection.Completed!.Value,annotate); }
             else return;
             e.Handled=true; return;
         }
@@ -259,9 +302,23 @@ internal sealed class AnnotationOverlay : Window
             deleteButton.Visibility=Selected.HasValue ? Visibility.Visible : Visibility.Collapsed;
             undoButton.IsEnabled=Model.CanUndo && !Editing; redoButton.IsEnabled=Model.CanRedo && !Editing;
         }
-        status.Text=!AnnotationMode ? "Drag a region · Space full monitor · Esc cancel" : Editable ? "" : "Continue on the selected monitor";
-        status.Visibility=string.IsNullOrEmpty(status.Text) ? Visibility.Collapsed : Visibility.Visible;
-        L.Tree(bar);LayoutToolbar(); surface.Cursor=Cursors.Cross; surface.InvalidateVisual();
+        status.Inlines.Clear();
+        if(!AnnotationMode)
+        {
+            status.Inlines.Add(new Run(L.T("Drag a region")+" · "));
+            modifierHint.Text=string.Format(L.T("{0} — annotations"),owner.Preferences.AnnotationModifier);
+            status.Inlines.Add(modifierInline);
+            status.Inlines.Add(new Run(" · "+L.T("Space full monitor · Esc cancel")));
+        }
+        else status.Text=Editable ? "" : L.T("Continue on the selected monitor");
+        status.Visibility=!AnnotationMode || !Editable ? Visibility.Visible : Visibility.Collapsed;
+        UpdateModifierVisual();glow.InvalidateVisual();
+        foreach(var button in annotationButtons) L.Tree(button);LayoutToolbar(); surface.Cursor=Cursors.Cross; surface.InvalidateVisual();
+    }
+    private void CompleteSelection(PxRect region,bool annotate)
+    {
+        ChooseRegion(region);
+        if(!annotate) owner.Commit(this);
     }
     public void ChooseRegion(PxRect region)
     {
@@ -309,6 +366,25 @@ internal sealed class AnnotationOverlay : Window
                 else if (selected is Arrow a) { dc.DrawEllipse(UtilityUi.Accent,new Pen(Brushes.White,1.5),new Point(a.Start.X,a.Start.Y),4,4); dc.DrawEllipse(UtilityUi.Accent,new Pen(Brushes.White,1.5),new Point(a.End.X,a.End.Y),4,4); }
             }
             if (window.Editable) dc.Pop(); dc.Pop(); dc.Pop(); dc.Pop();
+        }
+    }
+    // UI-only soft rings, clipped to the outside: no tint or blur touches selected pixels.
+    private sealed class SelectionGlow(AnnotationOverlay window) : FrameworkElement
+    {
+        protected override void OnRender(DrawingContext dc)
+        {
+            if(window.AnnotationMode || window.RegionSelection.Preview is not { } region) return;
+            double opacity=(double)window.GetValue(GlowOpacityProperty)*(double)window.GetValue(GlowStrengthProperty);
+            if(opacity<=0) return;
+            var t=window.DeviceTransform;var hole=new Rect(region.X/t.M11,region.Y/t.M22,region.Width/t.M11,region.Height/t.M22);
+            dc.PushClip(new CombinedGeometry(GeometryCombineMode.Exclude,new RectangleGeometry(new Rect(0,0,ActualWidth,ActualHeight)),new RectangleGeometry(hole)));
+            double intensity=Appearance.Current==UiTheme.Light ? .31 : .28;
+            for(int i=14;i>=1;i--)
+            {
+                var brush=new SolidColorBrush(((SolidColorBrush)UtilityUi.Accent).Color) { Opacity=opacity*intensity*Math.Exp(-i*i/48.0) };
+                var ring=hole;ring.Inflate(i*.65,i*.65);dc.DrawRectangle(null,new Pen(brush,1.4),ring);
+            }
+            dc.Pop();
         }
     }
 }

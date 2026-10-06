@@ -136,10 +136,8 @@ try {
     [void][ScreenItSmoke]::SendMessage($captureWindow,0x100,[IntPtr]0x20,[IntPtr]::Zero)
     [void][ScreenItSmoke]::SendMessage($captureWindow,0x101,[IntPtr]0x20,[IntPtr]::Zero)
     Start-Sleep -Milliseconds 150
-    $captureWindow = Wait-SmokeWindow $first.Id 'Done (Ctrl+Enter)'
-    Invoke-SmokeButton $captureWindow 'Done (Ctrl+Enter)'
     [void](Wait-SmokeWindow $first.Id 'Screenshot A added')
-    $checks.Add('Real process: full-monitor selection and actual screenshot commit seed RAM session')
+    $checks.Add('Real process: Space quick full-monitor commit seeds RAM session')
     [void][ScreenItSmoke]::SendMessage($control,0x312,[IntPtr]3,[IntPtr]::Zero)
     $confirmation = Wait-SmokeWindow $first.Id 'Keep session'
     Invoke-SmokeButton $confirmation 'Keep session'

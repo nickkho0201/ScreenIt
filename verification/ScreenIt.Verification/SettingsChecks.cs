@@ -23,6 +23,8 @@ internal static class SettingsChecks
         string folder=Path.Combine(Path.GetTempPath(),"ScreenItSettingsChecks",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(folder);string path=Path.Combine(folder,"settings.json");
         try
         {
+            ShortcutRecordingChecks.State(check);await ShortcutRecordingChecks.Ui(check,path);
+            HotkeyPolicyChecks.State(check);await HotkeyPolicyChecks.Ui(check,path,SavePreview);
             check(Preferences.DefaultLanguage(new CultureInfo("ru-RU"))=="ru" && Preferences.DefaultLanguage(new CultureInfo("fr-FR"))=="en","Windows language fallback RU/EN");
             var swapped=new Preferences { Language="en",Hotkeys=new() { [GlobalAction.Capture]=new(3,0x56),[GlobalAction.Paste]=new(3,0x53),[GlobalAction.Clear]=new(3,0x58) } };swapped.Save(path);
             check(Preferences.Load(path).Hotkeys[GlobalAction.Capture]==new Hotkey(3,0x56) && Preferences.Load(path).Hotkeys[GlobalAction.Paste]==new Hotkey(3,0x53),"Persisted swapped bindings load as a complete set");
@@ -38,7 +40,7 @@ internal static class SettingsChecks
                 var custom=new Dictionary<GlobalAction,Hotkey>(defaults) { [GlobalAction.Capture]=new(6,0x51) };check(keys.Replace(custom) && registrations.Count==3,"Custom hotkey atomic replacement");
                 var bad=new Dictionary<GlobalAction,Hotkey>(custom) { [GlobalAction.Paste]=new(3,0x54) };check(!keys.Replace(bad) && keys.ActionFor(2)==GlobalAction.Paste && registrations.Count==3,"Unavailable Windows registration retains previous bindings");
                 bad[GlobalAction.Paste]=custom[GlobalAction.Capture];int before=attempts;check(!keys.Replace(bad) && attempts==before,"Duplicate hotkey rejected before native registration");
-                check(!new Hotkey(0,0x53).Valid && !new Hotkey(3,0x11).Valid && !new Hotkey(8,0x4C).Valid,"Bare/modifier-only/reserved shortcuts rejected");
+                check(!new Hotkey(0,0x53).Valid && !new Hotkey(3,0x11).Valid && new Hotkey(8,0x4C).Valid,"Bare/modifier-only rejected; system chords use registration availability");
                 check(!keys.Replace(defaults,()=>false) && registrations.Count==3,"Persistence failure rolls back staged hotkey registration");
                 keys.Register=(id,k)=>k.Key!=0x53 && registrations.Add(id);check(!keys.Replace(defaults) && registrations.Count==3,"Reset failure retains all previous registrations");
                 keys.Register=(id,k)=>registrations.Add(id);check(keys.Replace(defaults) && registrations.Count==3,"Atomic reset defaults succeeds");
@@ -46,7 +48,7 @@ internal static class SettingsChecks
             check(registrations.Count==0,"Hotkey disposal releases every registration");
             foreach(uint vk in new uint[]{0x08,0x2E,0x2D,0x24,0x23,0x21,0x22,0x25,0x27,0x26,0x28,0x20,0x7B}) check(new Hotkey(6,vk).Valid,"Modified main key supported "+vk);
             check(new Hotkey(6,0x08).ToString()=="Ctrl+Shift+Backspace" && new Hotkey(2,0x7B).ToString()=="Ctrl+F12" && new Hotkey(12,0x25).ToString()=="Win+Shift+Left" && new Hotkey(3,0x2E).ToString()=="Ctrl+Alt+Delete","Canonical expanded key display");
-            check(!new Hotkey(3,0x2E).Valid && !new Hotkey(6,0x14).Valid,"Secure attention shortcut and Caps Lock remain excluded");
+            check(new Hotkey(3,0x2E).Valid && !new Hotkey(6,0x14).Valid,"Supported secure-attention chord defers to Windows; Caps Lock main key remains unsupported");
             var nativeHost=new Window();var handle=new WindowInteropHelper(nativeHost).EnsureHandle();
             using(var real=new HotkeyRegistration(handle))
             {
@@ -86,10 +88,16 @@ internal static class SettingsChecks
             c.ShowSettings();var settings=c.Settings!;c.ShowSettings();check(ReferenceEquals(settings,c.Settings),"Settings single-window ownership");settings.Close();check(c.Settings==null && !c.ConfirmationOpen,"Settings Closed destroys reference/guard");
             c.ShowSettings();c.Settings!.SelectPage(1);var keyPanel=(DependencyObject)c.Settings.Content;
             var captureBinding=Buttons(keyPanel).Single(b=>b.Content is string text && text=="Ctrl+Alt+S");captureBinding.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-            check(c.Settings.Recording,"Hotkey recording entered from focused/clicked control");c.Settings.RecordShortcut(new(0,0x53));check(c.Settings.Recording && c.Preferences.Hotkeys[GlobalAction.Capture]==new Hotkey(3,0x53),"Invalid recording preserves original binding");
+            check(c.Settings.Recording,"Hotkey recording entered from focused/clicked control");c.Settings.RecordShortcut(new(0,0x53));check(!c.Settings.Recording && !c.Settings.RecorderInstalled && c.Preferences.Hotkeys[GlobalAction.Capture]==new Hotkey(3,0x53),"Invalid recording restores original binding and releases recorder");
+            Buttons((DependencyObject)c.Settings.Content).Single(b=>b.Content is string text && text=="Ctrl+Alt+S").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             c.Settings.RecordShortcut(new(6,0x51));check(!c.Settings.Recording && c.PrimaryCommands[0].ShortcutKeyDisplayString=="Ctrl+Shift+Q" && Preferences.Load(path).Hotkeys[GlobalAction.Capture]==new Hotkey(6,0x51),"Recorder commits custom binding and updates tray/persistence");
             Buttons((DependencyObject)c.Settings.Content).Single(b=>b.Content is string text && text=="Ctrl+Shift+Q").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             c.Settings.RecordShortcut(new(6,0x08));check(!c.Settings.Recording && c.Preferences.Hotkeys[GlobalAction.Capture]==new Hotkey(6,0x08) && Preferences.Load(path).Hotkeys[GlobalAction.Capture].ToString()=="Ctrl+Shift+Backspace","Backspace recording commits and persists canonical binding");
+            Buttons((DependencyObject)c.Settings.Content).Single(b=>b.Content is string text && text=="Ctrl+Shift+Backspace").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            c.Settings.RecordShortcut(new(12,0x53));check(!c.Settings.Recording && c.PrimaryCommands[0].ShortcutKeyDisplayString=="Win+Shift+S" && Preferences.Load(path).Hotkeys[GlobalAction.Capture]==new Hotkey(12,0x53),"Settings records/displays/persists Win+Shift+S Capture");
+            var modifierChoice=Descendants<ComboBox>((DependencyObject)c.Settings.Content).Single(combo=>System.Windows.Automation.AutomationProperties.GetName(combo)=="Annotation modifier");
+            modifierChoice.SelectedItem=modifierChoice.Items.Cast<ComboBoxItem>().Single(item=>Equals(item.Tag,AnnotationModifier.Alt));
+            check(c.Preferences.AnnotationModifier==AnnotationModifier.Alt && Preferences.Load(path).AnnotationModifier==AnnotationModifier.Alt,"Settings modifier dropdown persists live selection");
             check(c.ChangeHotkeys(Hotkey.Defaults()),"Coordinator reset default hotkeys");c.Settings.Close();
             c.ShowSettings();c.Session.Commit(c.Session.CreateDraft(100,100));c.Clear();await Dispatcher.Yield(DispatcherPriority.Render);
             check(c.ClearDialog?.IsVisible==true && c.Settings!.IsVisible,"Clear confirmation is visible while modeless Settings stays open");c.ClearDialog!.Complete(false);
@@ -120,7 +128,7 @@ internal static class SettingsChecks
             foreach(var key in L.EnglishKeys) { var translated=L.T(key);check(translated.Length>0 && (translated!=key || key=="ScreenIt"),"Russian resource present: "+key); }
             L.Select("en");check(L.T("Снимок A добавлен")=="Screenshot A added","Live text reverse translation to English");
             overlay.CancelEdit();c.Cancel();c.Settings!.Close();
-            c.ShowSettings();foreach(var (lang,theme,page,name) in new[]{("ru",ThemePreference.Dark,0,"general-dark-ru"),("en",ThemePreference.Light,0,"general-light-en"),("ru",ThemePreference.Dark,1,"hotkeys"),("ru",ThemePreference.Dark,2,"about")})
+            c.ShowSettings();foreach(var (lang,theme,page,name) in new[]{("ru",ThemePreference.Dark,0,"general-dark-ru"),("en",ThemePreference.Light,0,"general-light-en"),("ru",ThemePreference.Dark,1,"hotkeys-dark-ru"),("en",ThemePreference.Dark,1,"hotkeys-dark-en"),("ru",ThemePreference.Light,1,"hotkeys-light-ru"),("en",ThemePreference.Light,1,"hotkeys-light-en"),("ru",ThemePreference.Dark,2,"about")})
             { c.Preferences.Language=lang;c.Preferences.Theme=theme;L.Select(lang);Appearance.Choose(theme);c.Settings!.SelectPage(page);await Dispatcher.Yield(DispatcherPriority.Render);SavePreview(c.Settings,name);check(c.Settings.AppliedTheme==Appearance.Current,"Settings palette preview "+name);
                 var root=(DependencyObject)c.Settings.Content;var scroller=Descendants<ScrollViewer>(root).Single();var title=Descendants<TextBlock>(scroller).First();
                 check(scroller.VerticalContentAlignment==VerticalAlignment.Top && title.TranslatePoint(new Point(),(FrameworkElement)root).Y<2,"Compact top-aligned content "+name);
@@ -129,7 +137,17 @@ internal static class SettingsChecks
                 check(Buttons(root).All(button=>button.Cursor==System.Windows.Input.Cursors.Hand && button.HorizontalContentAlignment==HorizontalAlignment.Center && button.VerticalContentAlignment==VerticalAlignment.Center),"Settings buttons centered with Hand cursor "+name);
                 check(Buttons(root).All(button=>button.Template.Triggers.OfType<Trigger>().Any(t=>t.Property==UIElement.IsMouseOverProperty && t.Setters.OfType<Setter>().Any(setter=>setter.Property==Border.BackgroundProperty && setter.TargetName=="ButtonSurface")) && button.Template.Triggers.OfType<Trigger>().Any(t=>t.Property==System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty && t.Setters.OfType<Setter>().Any(setter=>setter.Property==Border.BackgroundProperty && setter.TargetName=="ButtonSurface"))),"Settings buttons have distinct hover/pressed surfaces "+name);
                 check(Buttons(root).Count(button=>System.Windows.Automation.AutomationProperties.GetItemStatus(button)=="Current page" && button.FontWeight==FontWeights.SemiBold)==1,"Exactly one selected navigation state "+name);
-                if(page==1) check(Descendants<TextBlock>(root).Any(text=>text.Text==L.T("Use Ctrl, Alt, Shift or Win with a letter, number, F1–F12 or navigation key.")),"Expanded hotkey description localized");
+                if(page==1)
+                {
+                    check(Descendants<TextBlock>(root).Any(text=>text.Text==L.T("Use Ctrl, Alt, Shift or Win with a letter, number, F1–F12 or navigation key.")),"Expanded hotkey description localized");
+                    check(scroller.ScrollableHeight<.5 && scroller.ComputedVerticalScrollBarVisibility!=Visibility.Visible,"Hotkeys default size fits without scrollbar "+name);
+                    c.Settings.Height=c.Settings.MinHeight;await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);scroller.UpdateLayout();
+                    check(scroller.ScrollableHeight>0 && scroller.ComputedVerticalScrollBarVisibility==Visibility.Visible,"Reduced Settings height retains scrolling fallback "+name);
+                    var vertical=(System.Windows.Controls.Primitives.ScrollBar)scroller.Template.FindName("PART_VerticalScrollBar",scroller);
+                    check(vertical.Width==10 && vertical.ActualWidth<=10.5 && ReferenceEquals(vertical.Style,scroller.Resources[typeof(System.Windows.Controls.Primitives.ScrollBar)]),"Fallback scrollbar uses compact ScreenIt style "+name);
+                    SavePreview(c.Settings,name+"-compact");
+                    c.Settings.Height=620;await Dispatcher.Yield(DispatcherPriority.Render);
+                }
                 if(page==0) { var choices=Descendants<ComboBox>(root).ToArray();check(choices.Length==2 && choices[0].Items.Count==3 && choices[1].Items.Count==2,"Theme/language dropdown options "+name);check(choices[1].Items.Cast<ComboBoxItem>().Any(item=>Equals(item.Content,"Русский")),"Russian language name is intact Unicode "+name);choices[0].IsDropDownOpen=true;await Dispatcher.Yield(DispatcherPriority.Render);check(choices[0].IsDropDownOpen,"Themed dropdown opens "+name);choices[0].IsDropDownOpen=false; }
  }
             c.Preferences.Language="en";L.Select("en");c.Settings!.SelectPage(0);

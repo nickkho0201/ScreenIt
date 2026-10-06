@@ -1,13 +1,13 @@
 # Architecture
 
-Фактическая production-архитектура версии `0.1.2`, проверенная по исходникам 2026-10-05. Публичное использование — в [README](README.md), команды и проверки — в [DEVELOPMENT](DEVELOPMENT.md), правила изменений — в [AGENTS](AGENTS.md).
+Архитектура исходников `0.1.2` с Unreleased UX changes от 2026-10-06. Release version не изменена. Публичное использование — в [README](README.md), команды и проверки — в [DEVELOPMENT](DEVELOPMENT.md), правила изменений — в [AGENTS](AGENTS.md).
 
 ## System overview
 
 ScreenIt — Windows tray utility для накопления снимков с аннотациями и передачи их в выбранное приложение. Основного постоянно открытого окна нет. Сессия и изображения находятся в RAM; сеть используется только по явным командам updater. Нет backend, account, telemetry, persistent history, window capture или пользовательского Save As.
 
 ```text
-WM_HOTKEY / tray Capture / tray double-click
+WM_HOTKEY / reserved shortcut message / tray Capture / tray double-click
   → Coordinator.Capture
   → monitor enumeration + sequential BitBlt (worker thread)
   → frozen frames → per-monitor AnnotationOverlay
@@ -52,7 +52,7 @@ Production entry point — `src/ScreenIt.App/Program.cs: Program.Main`; verifica
 3. Coordinator создаёт скрытое control Window/`HwndSource`, добавляет message hook, регистрирует hotkeys и WTS notifications, создаёт WinForms NotifyIcon/ContextMenuStrip. WPF владеет HWND/DPI initialization; WinForms используется для tray UI.
 4. На startup запускается conservative cleanup clipboard PNG generations. После успешного возвращения конструктора Coordinator production `Application.Startup` вызывает однократный `NotifyStarted`: локализованный background toast на primary monitor, без Settings/активации. Проверка mutex предшествует созданию Application/Coordinator, поэтому второй process не показывает toast. Update check на startup отсутствует. В ожидании действий работает dispatcher/message loop.
 5. Capture устанавливает `busy`, скрывает toast и Settings, закрывает tray menu, делает render yield и `DwmFlush`, снимает frames в `Task.Run`, проверяет topology и создаёт overlays. После всех `ContentRendered` (timeout 5 секунд) проверяет physical placement и фокусирует primary overlay.
-6. Drag/Space переводит выбранный overlay в annotation mode; Coordinator назначает единственный `Active`. Остальные overlays продолжают показывать frozen monitors, но не редактируют draft.
+6. Drag/Space создаёт draft и crop в выбранном overlay; Coordinator назначает единственный `Active`. Без annotation modifier сразу вызывается обычный Commit, с удерживаемым modifier остаётся существующий annotation mode. Остальные overlays продолжают показывать frozen monitors, но не редактируют draft.
 7. Commit допускается для текущего Active, вне editing и suspension. Сначала render, затем `Session.Commit`, затем raster pair по GUID. Все overlays закрываются, отображается Added toast. Cancel закрывает временные окна без добавления снимка.
 8. Paste/Copy используют committed snapshot. Clear блокируется при capture/paste, иначе открывает единственный owned modeless confirmation; только Accepted очищает Session и Rasters. Cancel/Escape/X/обычный Enter сохраняют сессию.
 9. Закрытие Settings уничтожает только это окно. Tray Exit или `WM_CLOSE` control запускает Exit: закрывает Clear dialog, запрашивает подтверждение при наличии committed снимков, затем Dispose и Application.Shutdown.
@@ -83,7 +83,9 @@ Region ограничен одним монитором. Минимум selectio
 
 ### Overlay lifecycle и cancellation
 
-Выбор региона автоматически создаёт detached frozen crop и ScreenshotDraft в том же HWND; отдельного editor window нет. Default tool — Marker. Новый marker существует в model только после непустого comment commit; Escape editor не расходует номер. Номера high-water не переиспользуются после Delete/Undo. Arrow минимум 4 px; Box минимум 3×3 px. Undo/Redo — snapshots текущего draft, не всей session; committed draft sealed.
+Выбор региона автоматически создаёт detached frozen crop и ScreenshotDraft в том же HWND; отдельного editor window нет. При mouse-up и Space физическое состояние настроенного Ctrl/Shift/Alt читается через GetAsyncKeyState: удержание сохраняет annotation mode, иначе сразу вызывается тот же Coordinator.Commit. Клавиша может входить в capture hotkey, быть нажата во время drag или отпущена перед drop. Прямой clipboard transfer не добавлен. Default tool — Marker. Новый marker существует в model только после непустого comment commit; Escape editor не расходует номер. Номера high-water не переиспользуются после Delete/Undo. Arrow минимум 4 px; Box минимум 3×3 px. Undo/Redo — snapshots текущего draft, не всей session; committed draft sealed.
+
+PreviewKeyDown/Up и activation/deactivation обновляют visual modifier state без polling. Верхний hint содержит отдельный локализованный modifier element. SelectionGlow — WPF element с мягкими внешними accent rings, clipped вне region; исходная тонкая рамка остаётся в Surface. Dependency-property animations дают 140 ms fade и 1.5 s breathing, при SystemParameters.ClientAreaAnimation=false — статичный highlight. При закрытии clocks снимаются. Ни этот UI, ни hint не передаются Painter: оба commit paths используют crop исходного Frame.Image.
 
 При Deactivated/LostMouseCapture откатывается незавершённый gesture, frozen frame и comment editor сохраняются. Escape сначала отменяет gesture/edit, затем capture; draft с сохранёнными annotations требует Discard confirmation. Overlay close/Alt+F4 направляется в Coordinator.Cancel через `ClosingByApp` guard.
 
@@ -125,9 +127,15 @@ Preferences path: `%LOCALAPPDATA%\ScreenIt\settings.json`. Load принимае
 
 Save клонирует исходный JSON, сохраняет неизвестные поля, пишет schemaVersion 2, theme/language/hotkeys во временный соседний GUID файл и заменяет settings через File.Move(overwrite). Нет backup или fsync contract. Oversized/malformed файл не сохраняется как original; последующая запись может заменить его defaults. Theme/language применяются после успешного Save; Coordinator откатывает in-memory выбор при IO/permission failure.
 
-HotkeyRegistration использует RegisterHotKey + MOD_NOREPEAT, dispatch через control WM_HOTKEY. Startup при конфликте configured key пробует default, предупреждает; даже недоступный default оставляет tray usable. Startup fallback меняет in-memory keys, не сохраняет их автоматически.
+HotkeyRegistration использует RegisterHotKey + MOD_NOREPEAT, dispatch через control WM_HOTKEY, для обычных сочетаний. Единственное исключение — Capture=Win+Shift+S: ReservedCaptureHook устанавливает WH_KEYBOARD_LL на отдельном message thread. Callback пропускает прочие keys, дополнительные Ctrl/Alt и injected input, подавляет только точный S gesture и repeats; PostMessage переносит capture в STA Coordinator с проверкой актуального dynamic ID. Modifier bits отслеживаются событиями и сверяются при S по состоянию предшествующих modifier keys, чтобы восстановиться после secure desktop. Hook не читает/логирует вводимый текст и не выполняет capture, save или UI callbacks. Startup при конфликте configured key/ошибке установки hook пробует default, предупреждает; даже недоступный default оставляет tray usable. Startup fallback меняет in-memory keys, не сохраняет их автоматически.
 
-Replace проверяет полный уникальный valid набор, staged registration/reuse, затем persistence callback; при failure освобождает новые registrations, оставляя старые. Только после успеха снимает obsolete registrations. Hotkey IDs после replacement могут меняться: нельзя считать action равным wp ID. Dispose снимает оставшиеся registrations. Это не low-level keyboard hook; HWND message hooks и mouse capture имеют другой lifecycle.
+Replace проверяет полный уникальный valid набор, staged registration/reuse, затем persistence callback; при failure освобождает новые registrations, оставляя старые. Подготовленный reserved hook ещё не подавляет input до commit. Только после успеха снимаются obsolete registrations и включается новый binding. Hotkey IDs после replacement могут меняться: нельзя считать action равным wp ID. Runtime reserved hook остаётся только при назначенном reserved Capture; rebind/Dispose останавливает thread, unhooks и ждёт его завершения. Никаких Registry/system changes. Это отдельный lifecycle от HWND message hooks и mouse capture.
+
+Settings владеет отдельным временным ShortcutRecordingHook для любого поля Capture/Paste/Clear. Он использует такой же dedicated message-thread pattern, но отвечает только за input acquisition, без runtime registrations. ShortcutRecordingState собирает физические left/right modifiers и первый main key, подавляет свежие down/repeat/up до release всей gesture; уже удержанные до установки modifiers учитываются, их release пропускается. Это сохраняет Win и позволяет записывать chords, которые не доходят до WPF. Result/Esc публикуется через PostMessage с generation token; UI передаёт chord обычному ChangeHotkeys, затем возвращает поле к рабочему binding и освобождает recorder даже при отказе. Hide/deactivation/Closed отменяют scope немедленно; запоздалые messages игнорируются. Production игнорирует injected input. WPF и runtime hotkey messages не являются вторым источником записи. Installation failure показывает inline ошибку и сохраняет прежние bindings. Hook хранит только текущую gesture, не текст/history.
+
+Выбор backend находится в HotkeyRegistration.RegisterBinding(action,id,key): только Capture + точный Win+Shift+S использует reserved hook. Для всех остальных structurally valid chords, включая Win+Shift+S у Paste/Clear, доступность определяется RegisterHotKey без hook fallback и blacklist системных сочетаний. Validation проверяет supported modifiers/main keys и duplicates внутри набора. Reuse учитывает chord и backend, поэтому перенос S между Capture и другими actions требует соответствующей новой регистрации. HotkeyFailure сохраняет invalid/duplicate/unavailable/hook/save/busy причину и конкретную комбинацию; Settings показывает её в существующем inline error, startup fallback перечисляет отклонённые chords. Отказ регистрации или Save оставляет прежние mapping/settings/hook.
+
+Preferences сохраняет дополнительное optional поле annotationModifier (`ctrl`/`shift`/`alt`) в существующей schemaVersion 2. Отсутствующее/неподдерживаемое поле даёт Ctrl; старые theme/language/hotkeys и unknown fields сохраняются. Save failure возвращает прежнее значение. Формат screenshot/session не изменён.
 
 L использует английские фразы как keys, EN/RU dictionary и parameter patterns; refresh tree не должен переводить user TextBox content. Appearance выбирает palette и читает HKCU AppsUseLightTheme для System, реагирует на WM_SETTINGCHANGE/WM_THEMECHANGED. Autostart setting, Run registry key и startup task отсутствуют.
 

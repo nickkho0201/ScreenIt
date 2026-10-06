@@ -52,6 +52,20 @@ internal static class L
         foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) Tree(child);
     }
     private const string Catalog="""
+Annotation modifier|Клавиша разметки
+Shortcut set is invalid.|Набор сочетаний недопустим.
+{0} is not supported by ScreenIt.|Комбинация {0} не поддерживается ScreenIt.
+{0} is already assigned to “{1}”.|Комбинация {0} уже назначена действию «{1}».
+{0} is unavailable. It is already used by Windows or another application.|Комбинация {0} недоступна. Она уже используется Windows или другим приложением.
+{0} interception could not be enabled. Previous shortcuts remain active.|Не удалось включить перехват {0}. Прежние сочетания остаются рабочими.
+Settings could not be saved. Previous shortcuts remain active.|Не удалось сохранить настройки. Прежние сочетания остаются рабочими.
+Shortcut recording could not start. Previous shortcuts remain active.|Не удалось начать запись сочетания. Прежние сочетания остаются рабочими.
+Finish the current operation before changing shortcuts.|Завершите текущую операцию перед изменением сочетаний.
+Win+Shift+S interception could not be enabled. Previous shortcuts remain active.|Не удалось включить перехват Win+Shift+S. Прежние сочетания остаются рабочими.
+Hold on release or with Space to annotate. Otherwise the screenshot is added immediately.|Удерживайте при отпускании мыши или с Space для разметки. Иначе снимок сразу добавляется в сессию.
+Drag a region|Выделите область
+{0} — annotations|{0} — аннотации
+Space full monitor · Esc cancel|Space — весь монитор · Esc — отменить
 Settings|Настройки
 General|Основные
 Hotkeys|Клавиши

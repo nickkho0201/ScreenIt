@@ -12,21 +12,46 @@ internal sealed class SettingsWindow : Window
     private readonly CancellationTokenSource cancellation=new();
     private int page;
     private GlobalAction? recording;
+    private ShortcutRecordingHook? recorder;
+    private HwndSource? recorderSource;
+    private int recordingGeneration;
+    internal bool RecorderInstalled => recorder!=null;
+    internal bool RecordInjectedInput { get; set; } // Native verification only; production ignores synthetic input.
     private bool updating;
     internal bool Recording => recording!=null;
+    internal string ValidationError => L.T(error);
     private string updateStatus="",error="";
     private UpdateRelease? release;
     internal UiTheme AppliedTheme { get; private set; }
     internal int Page => page;
-    internal void SelectPage(int value) { page=value;recording=null;Refresh(); }
+    internal void SelectPage(int value) { page=value;StopRecording();Refresh(); }
+    private void StopRecording() { recording=null;recordingGeneration++;recorder?.Dispose();recorder=null; }
+    private void BeginRecording(GlobalAction action)
+    {
+        StopRecording();error="";
+        recording=action;
+        try
+        {
+            var hwnd=new WindowInteropHelper(this).EnsureHandle();
+            if(recorderSource==null) { recorderSource=HwndSource.FromHwnd(hwnd)!;recorderSource.AddHook(RecorderMessage); }
+            recorder=new ShortcutRecordingHook(hwnd,recordingGeneration,RecordInjectedInput);
+        }
+        catch(System.ComponentModel.Win32Exception ex)
+        {
+            System.Diagnostics.Trace.TraceError("ScreenIt shortcut recorder installation failed: {0}",ex.NativeErrorCode);
+            StopRecording();error="Shortcut recording could not start. Previous shortcuts remain active.";
+        }
+        Refresh();
+    }
     internal SettingsWindow(Coordinator owner,IUpdateSource? updates=null)
     {
         this.owner=owner;this.updates=updates ?? new GithubUpdateSource();
-        Title="ScreenIt";Icon=UtilityUi.WindowIcon();Width=780;Height=540;MinWidth=700;MinHeight=510;WindowStartupLocation=WindowStartupLocation.CenterScreen;
+        Title="ScreenIt";Icon=UtilityUi.WindowIcon();Width=780;Height=620;MinWidth=700;MinHeight=510;WindowStartupLocation=WindowStartupLocation.CenterScreen;
         SourceInitialized+=(_,_)=>Refresh();
-        Closed+=(_,_)=> { cancellation.Cancel();cancellation.Dispose();Content=null; };
+        Closed+=(_,_)=> { StopRecording();recorderSource?.RemoveHook(RecorderMessage);recorderSource=null;cancellation.Cancel();cancellation.Dispose();Content=null; };
         PreviewKeyDown+=Record;
-        Deactivated+=(_,_)=> { if(recording!=null) { recording=null;Refresh(); } };
+        Deactivated+=(_,_)=> { if(recording!=null) { StopRecording();Refresh(); } };
+        IsVisibleChanged+=(_,_)=> { if(!IsVisible && recording!=null) { StopRecording();Refresh(); } };
         Refresh();
     }
     private static TextBlock Text(string value,double size=14,bool bold=false) => new() { Text=L.T(value),FontSize=size,FontWeight=bold ? FontWeights.SemiBold : FontWeights.Normal,Foreground=UtilityUi.Ink,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,12) };
@@ -109,6 +134,32 @@ internal sealed class SettingsWindow : Window
             nav.Children.Add(button);
         }
         var content=new StackPanel { VerticalAlignment=VerticalAlignment.Top };var scroll=new ScrollViewer { Content=content,VerticalContentAlignment=VerticalAlignment.Top,HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalScrollBarVisibility=ScrollBarVisibility.Auto };Grid.SetColumn(scroll,1);root.Children.Add(scroll);
+        scroll.Resources["ScrollThumb"]=Appearance.Palette.Border;scroll.Resources["ScrollThumbActive"]=UtilityUi.Accent;
+        scroll.Resources[typeof(System.Windows.Controls.Primitives.ScrollBar)]=System.Windows.Markup.XamlReader.Parse("""
+            <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="ScrollBar">
+              <Setter Property="Width" Value="10"/><Setter Property="MinWidth" Value="0"/><Setter Property="Background" Value="Transparent"/>
+              <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar">
+                <Track x:Name="PART_Track" Orientation="Vertical" IsDirectionReversed="True" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}" ViewportSize="{TemplateBinding ViewportSize}" Value="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                  <Track.DecreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageUpCommand}" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+                  <Track.Thumb><Thumb MinHeight="24"><Thumb.Template><ControlTemplate TargetType="Thumb">
+                    <Border x:Name="thumb" Background="{DynamicResource ScrollThumb}" CornerRadius="3" Margin="2,0"/>
+                    <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="thumb" Property="Background" Value="{DynamicResource ScrollThumbActive}"/></Trigger><Trigger Property="IsDragging" Value="True"><Setter TargetName="thumb" Property="Background" Value="{DynamicResource ScrollThumbActive}"/></Trigger></ControlTemplate.Triggers>
+                  </ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+                  <Track.IncreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageDownCommand}" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton>
+                </Track>
+              </ControlTemplate></Setter.Value></Setter>
+            </Style>
+            """);
+        scroll.Loaded+=(_,_)=>
+        {
+            // The Windows ScrollViewer template supplies local scrollbar values;
+            // explicitly apply our fallback style to its vertical template part.
+            scroll.ApplyTemplate();
+            if(scroll.Template.FindName("PART_VerticalScrollBar",scroll) is System.Windows.Controls.Primitives.ScrollBar vertical)
+            {
+                vertical.Style=(Style)scroll.Resources[typeof(System.Windows.Controls.Primitives.ScrollBar)];vertical.MinWidth=0;vertical.Width=10;
+            }
+        };
         var pageTitle=Text(pages[page],20,true);pageTitle.Margin=new Thickness(0,0,0,22);content.Children.Add(pageTitle);
         if(page==0)
         {
@@ -124,10 +175,15 @@ internal sealed class SettingsWindow : Window
             {
                 var row=new Grid { Margin=new Thickness(0,0,0,12) };row.ColumnDefinitions.Add(new());row.ColumnDefinitions.Add(new() { Width=new GridLength(220) });
                 var caption=Text(action==GlobalAction.Paste ? "Paste Session" : action==GlobalAction.Clear ? "Clear Session" : "Capture");caption.VerticalAlignment=VerticalAlignment.Center;caption.Margin=new();row.Children.Add(caption);
-                var button=Action(recording==action ? "Press shortcut…" : owner.Preferences.Hotkeys[action].ToString(),()=> { recording=action;error="";Refresh(); });button.HorizontalAlignment=HorizontalAlignment.Stretch;button.Margin=new();Grid.SetColumn(button,1);row.Children.Add(button);content.Children.Add(row);
+                var button=Action(recording==action ? "Press shortcut…" : owner.Preferences.Hotkeys[action].ToString(),()=>BeginRecording(action));button.HorizontalAlignment=HorizontalAlignment.Stretch;button.Margin=new();Grid.SetColumn(button,1);row.Children.Add(button);content.Children.Add(row);
                 if(recording==action) Dispatcher.BeginInvoke(()=> { if(recording==action && IsVisible) button.Focus(); });
             }
-            content.Children.Add(Action("Reset defaults",()=> { error=owner.ChangeHotkeys(Hotkey.Defaults()) ? "" : "Shortcut unavailable or invalid. Previous shortcuts remain active.";Refresh(); }));
+            content.Children.Add(Action("Reset defaults",()=> { StopRecording();error=owner.ChangeHotkeys(Hotkey.Defaults()) ? "" : owner.LastHotkeyFailure!.Message;Refresh(); }));
+            var modifierLabel=Text("Annotation modifier",14,true);modifierLabel.Margin=new Thickness(0,0,0,8);content.Children.Add(modifierLabel);
+            content.Children.Add(Choice("Annotation modifier",Enum.GetValues<AnnotationModifier>().Select(m=>((object)m,m.ToString())),owner.Preferences.AnnotationModifier,value=> {
+                error=owner.ChangeAnnotationModifier((AnnotationModifier)value) ? "" : "Settings could not be saved. Please retry.";Refresh();
+            }));
+            content.Children.Add(Text("Hold on release or with Space to annotate. Otherwise the screenshot is added immediately."));
         }
         else
         {
@@ -141,7 +197,7 @@ internal sealed class SettingsWindow : Window
                 if(!installed) content.Children.Add(Text("Portable copy: install updates manually from the release page."));
             }
         }
-        if(error.Length>0) { var failure=Text(error);failure.Foreground=Appearance.Palette.Warning;failure.Margin=new Thickness(0,16,0,0);content.Children.Add(failure); }
+        if(error.Length>0) { var failure=Text(error);failure.Foreground=Appearance.Palette.Warning;failure.Margin=new Thickness(0,16,0,0);content.Children.Add(failure);if(page==1) failure.Loaded+=(_,_)=>failure.BringIntoView(); }
         Content=root;
         if(!string.IsNullOrEmpty(focusName)) Dispatcher.BeginInvoke(()=> { if(IsVisible && IsActive && ReferenceEquals(Content,root)) FindFocus(root,L.T(focusName))?.Focus(); });
         var hwnd=new WindowInteropHelper(this).Handle;if(hwnd!=IntPtr.Zero) { int dark=Appearance.Current==UiTheme.Dark ? 1 : 0;DwmSetWindowAttribute(hwnd,20,ref dark,4); }
@@ -158,18 +214,23 @@ internal sealed class SettingsWindow : Window
     }
     private void Record(object sender,KeyEventArgs e)
     {
-        if(e.Key==Key.Escape) { e.Handled=true;if(recording!=null) { recording=null;Refresh(); }else Close();return; }
-        if(recording==null) return;e.Handled=true;
-        var key=e.Key==Key.System ? e.SystemKey : e.Key;
-        if(key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin) return;
-        var mods=Keyboard.Modifiers;uint flags=(mods.HasFlag(ModifierKeys.Control) ? 2u : 0)|(mods.HasFlag(ModifierKeys.Alt) ? 1u : 0)|(mods.HasFlag(ModifierKeys.Shift) ? 4u : 0)|(mods.HasFlag(ModifierKeys.Windows) ? 8u : 0);
-        RecordShortcut(new(flags,(uint)KeyInterop.VirtualKeyFromKey(key)));
+        if(recording!=null) { e.Handled=true;return; } // The recorder owns chord input; WPF is not a second source.
+        if(e.Key==Key.Escape) { e.Handled=true;Close(); }
+    }
+    private IntPtr RecorderMessage(IntPtr hwnd,int message,IntPtr wp,IntPtr lp,ref bool handled)
+    {
+        if(message!=ShortcutRecordingHook.Message) return IntPtr.Zero;
+        handled=true;
+        if(recording==null || wp.ToInt64()!=recordingGeneration || !IsVisible || !IsActive) return IntPtr.Zero;
+        if(lp==IntPtr.Zero) { StopRecording();Refresh(); }
+        else RecordShortcut(new((uint)((long)lp&15),(uint)(((long)lp>>16)&0xFFFF)));
+        return IntPtr.Zero;
     }
     internal void RecordShortcut(Hotkey key)
     {
         if(recording is not { } action) return;
         var proposed=new Dictionary<GlobalAction,Hotkey>(owner.Preferences.Hotkeys) { [action]=key };
-        if(owner.ChangeHotkeys(proposed)) { recording=null;error=""; }else error="Shortcut unavailable or invalid. Previous shortcuts remain active.";Refresh();
+        error=owner.ChangeHotkeys(proposed) ? "" : owner.LastHotkeyFailure!.Message;StopRecording();Refresh();
     }
     internal async Task CheckUpdates()
     {

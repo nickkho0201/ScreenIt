@@ -4,6 +4,8 @@ English | [Русский](README.ru.md)
 
 **ScreenIt 0.1.2**
 
+The workflow below includes unreleased changes in the current source tree; release packages remain 0.1.2.
+
 ScreenIt is a local-first Windows screenshot annotation utility designed for quickly showing AI assistants, developers, designers, and teammates exactly what you mean.
 
 **Capture → Point → Comment → Continue → Paste**
@@ -47,9 +49,9 @@ Download **ScreenIt-0.1.2-win-x64-portable.zip** from [Releases](https://github.
 
 ## Quick start
 
-1. **Ctrl+Alt+S** → drag a region and release the mouse, or **Space** for the active monitor. Annotation starts immediately.
-2. Click → **A1** → type a comment → **Enter**. Add more markers, arrows, or rectangles.
-3. **Ctrl+Enter** commits the screenshot and closes the overlay. Repeat for B, C…
+1. **Ctrl+Alt+S** → drag a region and release the mouse, or **Space** for the active monitor. The screenshot is immediately added to the session.
+2. To annotate, hold **Ctrl** when releasing the mouse or pressing Space. Click → **A1** → type a comment → **Enter**. Add more markers, arrows, or rectangles.
+3. In annotation mode, **Ctrl+Enter** commits the screenshot and closes the overlay. Repeat for B, C…
 4. Focus the target composer; press **Ctrl+Alt+V** once and release the keys. Images arrive in session order, with editable comments last.
 5. **Ctrl+Alt+X** → confirm Clear for a new session. Cancel, Escape, or closing confirmation preserves your session. Clear resets numbering to A/A1.
 
@@ -58,6 +60,12 @@ Stay in the same target window during Paste Session. Focus changes or errors sto
 Tray → **Settings** opens General, Hotkeys, and About. General selects **System / Dark / Light** and **English / Русский**; changes apply immediately. New installations default to System and the Windows UI language (Russian or English fallback). Existing Dark/Light preferences are preserved. System follows changes to the Windows app theme.
 
 Hotkeys lets you record a new Capture/Paste/Clear combination using Ctrl, Alt, Shift, or Win plus a letter, digit, F1–F12, Backspace, Delete, Insert, Home, End, PageUp/PageDown, arrow key, or Space. Unavailable or duplicate combinations keep previous bindings active. **Reset defaults** restores the default set atomically. Other overlay shortcuts remain fixed. Tray → **More** contains secondary manual copy commands.
+
+Capture also accepts **Win+Shift+S**, temporarily replacing Windows Snipping Tool while ScreenIt runs with that binding. Changing Capture to another shortcut or exiting releases interception; no Windows settings are modified. Settings → Hotkeys also selects the **annotation modifier: Ctrl / Shift / Alt**. Its physical state at release/Space decides whether annotation opens, even if it was part of the capture shortcut. The hint and an outer accent glow indicate the held modifier; overlay visuals never enter the screenshot. Windows disabled client-area animations use a static highlight.
+
+Every other supported combination uses ordinary Windows hotkey registration, including Win+Shift+S for Paste/Clear. There is no general override of occupied system shortcuts. A rejected binding shows the exact combination and reason; the previous binding remains active and saved.
+
+While recording a shortcut, Settings temporarily captures keyboard input, including Windows-key combinations, and suppresses that gesture until you release the keys. Escape cancels recording; switching away or closing Settings also ends it. This does not override unavailable shortcuts during normal operation.
 
 ## Shortcuts
 
@@ -87,7 +95,7 @@ The only runtime network functionality is an explicit **Settings → About → C
 
 Paste Session explicitly transfers data to your selected application through Windows clipboard/input. Further processing depends on that receiver; ScreenIt does not control its network behavior or third-party clipboard managers.
 
-Sessions live in RAM. Appearance, language, and global shortcuts are saved locally (schema version 2): `%LOCALAPPDATA%/ScreenIt/settings.json`. Paste creates temporary PNGs under `%TEMP%/ScreenIt/Clipboard-v1`. They remain after paste, Clear, and exit for asynchronous receivers; owned generations older than seven days are cleaned on a later startup.
+Sessions live in RAM. Appearance, language, global shortcuts, and annotation modifier are saved locally (schema version 2): `%LOCALAPPDATA%/ScreenIt/settings.json`. Older files default the modifier to Ctrl. Paste creates temporary PNGs under `%TEMP%/ScreenIt/Clipboard-v1`. They remain after paste, Clear, and exit for asynchronous receivers; owned generations older than seven days are cleaned on a later startup.
 
 ## Updates (0.1.2)
 
@@ -108,7 +116,7 @@ Compatibility with other applications may vary depending on how they handle Wind
 - Windows only; RAM-only sessions, no persistent history or crash recovery.
 - Committed screenshots cannot be reopened for editing.
 - English and Russian UI only.
-- Windows-reserved shortcuts and combinations registered by another app may be unavailable.
+- Windows-reserved shortcuts and combinations registered by another app may be unavailable, except the scoped Win+Shift+S Capture support. Physical Snipping Tool suppression requires manual acceptance on the target Windows desktop.
 - Unsigned installer and executable.
 - Physical 150%/200% DPI, portrait, HDR/protected content, and system transitions are not fully manually tested.
 

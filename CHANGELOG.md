@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- Capture hotkey `Win+Shift+S`: scoped low-level interception during the assigned binding, without Windows configuration changes. Settings input recording has its own temporary hook. Ordinary hotkeys retain RegisterHotKey; installation/save failures retain previous bindings.
+- Persisted annotation hold-modifier Ctrl (default), Shift or Alt; localized Settings control and dynamic selection hint.
+- UI-only outer accent glow and highlighted annotation hint while the modifier is held; smooth fades/breathing and a static Windows animation-disabled state.
+
+### Changed
+
+- Settings shortcut recording использует временный input-only hook для всех трёх actions: Win modifiers сохраняются, перехватываемые Windows chords доходят до существующей registration policy. Gesture подавляется только во время записи; release/Esc, focus loss и close снимают recorder. При отказе поле возвращается к прежнему binding с конкретной ошибкой. Runtime hotkey policy не расширена.
+- Hotkey availability для всех structurally valid сочетаний определяется RegisterHotKey; специальный hook остаётся только у Capture=Win+Shift+S. Win+Shift+S для Paste/Clear пробует обычную регистрацию. Reuse учитывает backend; неудачный rebind сохраняет старый hook/binding/settings. Inline ошибки EN/RU указывают конкретную комбинацию и различают invalid, duplicate, global conflict, hook и save failure.
+- Active annotation feedback усилен: более заметное внешнее accent-свечение и glow modifier hint, с немного большей интенсивностью Light theme. Geometry, animation timing и capture behavior сохранены.
+- Settings по умолчанию выше (620 DIP), чтобы EN/RU страница Hotkeys помещалась без scrollbar при прежней typography/spacing. При уменьшении окна используется компактный themed scrollbar без стрелок.
+- Region drop and focused-monitor Space immediately commit into the existing RAM session by default. Holding the configured modifier at drop/Space opens the existing annotation flow instead; Ctrl+Enter commits annotated drafts as before.
+- Verification covers modifier-at-drop/Space decisions, clean frozen output, settings migration/persistence, reserved shortcut filtering and native hook lifecycle. Production smoke now expects immediate Space commit. Physical Snipping Tool suppression/restoration remains a manual acceptance check.
+
 ## [0.1.2] - 2026-10-05
 
 ### Added

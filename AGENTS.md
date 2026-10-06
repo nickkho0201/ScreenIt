@@ -19,7 +19,7 @@ Spikes — архив исследований, не текущая implementati
 
 ## Product principles
 
-- Основной путь — drag/Space → annotation прямо в overlay → commit → продолжение сессии → один explicit Paste Session hotkey. Минимизировать дополнительные окна и шаги.
+- Основной путь — drag/Space → quick commit либо annotation при удержании настроенного modifier → продолжение сессии → один explicit Paste Session hotkey. Минимизировать дополнительные окна и шаги.
 - Clipboard transfer и updater — явные пользовательские действия. Нет telemetry, автоматической отправки screenshot/comment или startup/background update polling.
 - Background utility не должна красть receiver focus; feedback короткий, без отдельного тяжёлого interactive workflow. Ошибка feedback UI не отменяет уже успешно выполненное действие.
 - Comment bodies остаются editable Unicode text отдельно от bitmap; labels/geometry стабильны.
@@ -37,7 +37,7 @@ Spikes — архив исследований, не текущая implementati
 Контракты существующих flows:
 
 - Configurable global defaults: Capture `Ctrl+Alt+S`, Paste `Ctrl+Alt+V`, Clear `Ctrl+Alt+X`; overlay keys фиксированы. Tray Paste только инструктирует использовать hotkey в receiver.
-- Для существующих region/full focused-monitor modes: начальный focus primary, Space выбирает focused monitor, валидный drag сразу открывает annotation в том же HWND.
+- Для существующих region/full focused-monitor modes: начальный focus primary, Space выбирает focused monitor; валидный drag/Space сразу commit в session, удерживаемый настроенный modifier открывает annotation в том же HWND.
 - Default Marker, nonempty comment commit, screenshot letters A…AA, high-water marker numbers без переиспользования после Undo/Delete.
 - Escape сначала прерывает gesture/edit; annotation draft с сохранёнными annotations требует Discard confirmation. Cancel draft не расходует session letter.
 - Paste отправляет singleton image payloads по порядку, затем comments при их наличии; session неизменна. Обнаруженная смена target/clipboard/held keys останавливает flow; нет auto-retry/rollback receiver.
@@ -81,7 +81,7 @@ Spikes — архив исследований, не текущая implementati
 Более тщательная проверка нужна для:
 
 - **Process lifecycle:** RAM loss, single-instance mutex, capture/paste/update во время Exit. Не Kill работающий пользовательский ScreenIt ради tests; его сессия не восстанавливается.
-- **Win32/interop:** x64 INPUT layout, screen/memory DC, selected bitmap restoration, HWND hooks/Disposal, WTS и hotkey cleanup. Не путать message hooks с low-level keyboard hooks, которых нет.
+- **Win32/interop:** x64 INPUT layout, screen/memory DC, selected bitmap restoration, HWND hooks/Disposal, WTS и hotkey cleanup. Не путать HWND message hooks с low-level keyboard hooks; соблюдать отдельные scopes runtime Capture и Settings recording.
 - **Thread affinity/async:** UI callbacks после await, cancellation/disposed guards, закрытие Settings с in-flight update, capture worker во время shutdown. Синхронный Dispose не превращать в предполагаемый async barrier.
 - **Clipboard/input:** global clipboard overwrite, ownership transfer, partial publication/SendInput, synthetic key release, focus guards/UIPI. Не читать/логировать чужой clipboard или автоматизировать receiver без task authorization.
 - **Filesystem:** retained PNGs, marker/TTL/reparse checks, CreateNew, settings overwrite и unknown-field preservation; не удалять unrelated/locked files, preferences или reviewed release artifacts.

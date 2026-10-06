@@ -68,7 +68,7 @@ internal sealed class Coordinator : IDisposable
                 Application.Current.Dispatcher.BeginInvoke(Exit);
         };
         try { temporary.Cleanup(DateTimeOffset.UtcNow); } catch (IOException) { } catch (UnauthorizedAccessException) { }
-        Update();if(fallback) Application.Current.Dispatcher.BeginInvoke(()=>UtilityUi.Inform("Some configured shortcuts were unavailable. Available defaults are active; open Settings."));
+        Update();if(fallback) Application.Current.Dispatcher.BeginInvoke(()=>UtilityUi.Inform(string.Join(Environment.NewLine,hotkeys.StartupFailures.Select(f=>f.Message))+Environment.NewLine+L.T("Some configured shortcuts were unavailable. Available defaults are active; open Settings.")));
     }
     internal void ShowSettings()
     {
@@ -92,26 +92,45 @@ internal sealed class Coordinator : IDisposable
         catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { Preferences.Theme=oldTheme;Preferences.Language=oldLanguage;Error("Settings could not be saved. Please retry.");return false; }
         Appearance.Choose(Preferences.Theme);L.Select(Preferences.Language);Update();return true;
     }
+    internal HotkeyFailure? LastHotkeyFailure { get; private set; }
+    internal HotkeyRegistration HotkeyBindings => hotkeys;
     internal bool ChangeHotkeys(Dictionary<GlobalAction,Hotkey> proposed)
     {
-        if(paste.IsActive || busy) return false;
+        LastHotkeyFailure=null;
+        if(paste.IsActive || busy) { LastHotkeyFailure=new(HotkeyFailureKind.Busy);return false; }
         var old=new Dictionary<GlobalAction,Hotkey>(Preferences.Hotkeys);
         bool success=hotkeys.Replace(proposed,()=> {
             Preferences.Hotkeys=new(proposed);
             try { Preferences.Save(PreferencesPath);return true; }
             catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { Preferences.Hotkeys=old;return false; }
         });
-        if(!success) return false;
+        if(!success) { LastHotkeyFailure=hotkeys.LastFailure;return false; }
         Update();return true;
+    }
+    internal bool ChangeAnnotationModifier(AnnotationModifier value)
+    {
+        if(!Enum.IsDefined(value)) return false;
+        var old=Preferences.AnnotationModifier;Preferences.AnnotationModifier=value;
+        try { Preferences.Save(PreferencesPath); }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { Preferences.AnnotationModifier=old;return false; }
+        foreach(var overlay in overlays) overlay.Refresh();return true;
     }
     internal void ExitForUpdate() { Dispose();Application.Current.Shutdown(); }
     private IntPtr Hook(IntPtr hwnd, int msg, IntPtr wp, IntPtr lp, ref bool handled)
     {
+        if(msg==ReservedCaptureHook.Message)
+        {
+            handled=true;
+            if(disposed) return IntPtr.Zero;
+            if(Settings is { Recording:true,IsVisible:true,IsActive:true }) return IntPtr.Zero;
+            if(hotkeys.ActionFor((int)wp.ToInt64())==GlobalAction.Capture) _=Capture();
+            return IntPtr.Zero;
+        }
         if (msg == 0x0010) { handled = true; Application.Current.Dispatcher.BeginInvoke(Exit); return IntPtr.Zero; }
         if (msg == 0x0312)
         {
             handled = true;
-            if(Settings is { Recording:true,IsVisible:true,IsActive:true }) { Settings.RecordShortcut(new((uint)((long)lp & 15),(uint)(((long)lp >> 16) & 0xFFFF)));return IntPtr.Zero; }
+            if(Settings is { Recording:true,IsVisible:true,IsActive:true }) return IntPtr.Zero;
             var action=hotkeys.ActionFor((int)wp.ToInt64());
             if (action==GlobalAction.Paste) { var target = PasteInput.Foreground(); _ = PasteSession(target); }
             else if (action==GlobalAction.Capture) _ = Capture();
@@ -138,6 +157,7 @@ internal sealed class Coordinator : IDisposable
             await Dispatcher.Yield(DispatcherPriority.Render); Native.Flush();
             var monitors = Native.Monitors(); topology = Topology(monitors);
             var frames = await Task.Run(() => monitors.Select(Native.Capture).ToArray());
+            if(disposed) return;
             if (Topology(Native.Monitors()) != topology) throw new InvalidOperationException("Displays changed during capture. Please retry.");
             suspended = false;
             foreach (var frame in frames) overlays.Add(new(this, frame));

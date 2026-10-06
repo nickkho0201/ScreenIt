@@ -29,7 +29,7 @@ internal static class Verification
         app.Startup += async (_, _) =>
         {
             object report;
-            try { if(args.Contains("--toast-static",StringComparer.Ordinal)) ToastChecks.Static(Check);else await Run(); if(args.Contains("--check-updates",StringComparer.Ordinal)) { var actual=await new GithubUpdateSource().Check(System.Threading.CancellationToken.None);Check(actual==null,"Explicit live GitHub check: public latest is not newer than 0.1.2; no downgrade"); } report = new { status = "PASS", count = checks.Count, checks, machine = Native.Machine(), monitors = Native.Monitors(), latencyMs = latency.Count==0 ? null : Distribution(latency), resources, toastStress = ToastChecks.Stress, clearStress=ClearChecks.Stress,settingsStress=SettingsChecks.Stress }; }
+            try { if(args.Contains("--toast-static",StringComparer.Ordinal)) ToastChecks.Static(Check);else await Run(); if(args.Contains("--check-updates",StringComparer.Ordinal)) { var actual=await new GithubUpdateSource().Check(System.Threading.CancellationToken.None);Check(actual==null,"Explicit live GitHub check: public latest is not newer than 0.1.2; no downgrade"); } report = new { status = "PASS", count = checks.Count, checks, machine = Native.Machine(), monitors = Native.Monitors(), latencyMs = latency.Count==0 ? null : Distribution(latency), resources, toastStress = ToastChecks.Stress, clearStress=ClearChecks.Stress,settingsStress=SettingsChecks.Stress,captureUxStress=CaptureUxChecks.Stress }; }
             catch (Exception ex) { exit = 1; report = new { status = "FAIL", checks, error = ex.ToString(), resources }; }
             var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../artifacts")); Directory.CreateDirectory(root);
             File.WriteAllText(Path.Combine(root, args.Contains("--toast-static",StringComparer.Ordinal) ? "toast-static-verification.json" : "verification.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
@@ -88,11 +88,12 @@ internal static class Verification
     }
     private static async Task Run()
     {
-        Core(); using var coordinator = new Coordinator(showTray:false,registerHotkey:false);
+        Core();CaptureUxChecks.State(Check);await CaptureUxChecks.Run(Check); using var coordinator = new Coordinator(showTray:false,registerHotkey:false);
         await coordinator.Capture(); Check(coordinator.OverlayCount==Native.Monitors().Length,"Frozen overlay on every actual monitor");
         var windows = Application.Current.Windows.OfType<AnnotationOverlay>().ToArray();
         foreach(var overlay in windows) { overlay.Placement(); Check(true,"Actual physical HWND/DPI placement " + overlay.Frame.Monitor.Device); }
         var selectedWindow=windows.First(w=>w.Frame.Monitor.Primary);
+        selectedWindow.AnnotationHeld=()=>true;
         selectedWindow.BeginPointer(new(100,100)); selectedWindow.MovePointer(new(500,400)); Key(selectedWindow, System.Windows.Input.Key.Escape);
         Check(!selectedWindow.RegionSelection.Active && coordinator.OverlayCount==windows.Length,"Selection Esc rolls back gesture, retains capture");
         selectedWindow.BeginPointer(new(120,120)); Key(selectedWindow, System.Windows.Input.Key.Space); Check(selectedWindow.RegionSelection.Completed==new PxRect(0,0,selectedWindow.Frame.Monitor.Width,selectedWindow.Frame.Monitor.Height),"Space full active monitor");
@@ -115,6 +116,7 @@ internal static class Verification
             var timer=Stopwatch.StartNew(); await coordinator.Capture(); timer.Stop(); if(cycle>=3) latency.Add(timer.Elapsed.TotalMilliseconds);
             var overlay=Application.Current.Windows.OfType<AnnotationOverlay>().OrderBy(w=>w.Frame.Monitor.Device).ElementAt(cycle % Native.Monitors().Length);
             var hwnd=new WindowInteropHelper(overlay).Handle;
+            overlay.AnnotationHeld=()=>true;
             overlay.BeginPointer(new(110.2,120.3)); overlay.MovePointer(new(910.2,720.3)); overlay.EndPointer(new(910.2,720.3));
             Check(overlay.Editable,"Valid mouse-up auto-transitions without Enter " + cycle);
             Check(new WindowInteropHelper(overlay).Handle==hwnd && overlay.Crop.PixelWidth==801 && overlay.Crop.PixelHeight==601,"Same HWND selection → annotation / exact crop " + cycle);
@@ -161,7 +163,7 @@ internal static class Verification
         overlay.BeginPointer(new(100,100)); overlay.EndPointer(new(100,100));
         Check(!overlay.AnnotationMode && overlay.RegionSelection.Completed==new PxRect(0,0,overlay.Frame.Monitor.Width,overlay.Frame.Monitor.Height),"Tiny mouse-up stays Selection and preserves prior region");
         overlay.EndPointer(new(500,500)); Check(!overlay.AnnotationMode,"Late mouse-up after gesture cancellation cannot transition");
-        Key(overlay,System.Windows.Input.Key.Space);
+        overlay.AnnotationHeld=()=>true;Key(overlay,System.Windows.Input.Key.Space);
         foreach(var tool in new[]{Tool.Marker,Tool.Arrow,Tool.Rectangle}) { overlay.Switch(tool); Check(overlay.ToolHighlighted(tool) && Enum.GetValues<Tool>().Where(t=>t!=tool).All(t=>!overlay.ToolHighlighted(t)),"Only active tool highlighted "+tool); }
         overlay.Switch(Tool.Marker);
         var marker=overlay.Model.CreateMarker(new(160,180),"synthetic selected marker");

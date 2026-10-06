@@ -98,12 +98,32 @@ Smoke временно записывает deterministic EN/dark/default или
 
 1. Запустить одну копию: tray доступен, startup не открывает capture/settings и не делает update check. Второй запуск не создаёт второй tray process.
 2. Tray Capture/double-click и настоящий configured capture hotkey открывают frozen overlays; повторный capture возвращает текущий draft.
-3. Drag region → annotation без дополнительного Enter; Space — целый focused monitor. Проверить marker click/type/Enter, move/edit/delete, arrow/rectangle, Undo/Redo. Comment body остаётся text, не рисуется на image.
+3. Drag/drop без modifier → immediate session commit; Space → quick focused monitor. Ctrl (либо настроенный Shift/Alt) при drop/Space → annotation в том же HWND. Проверить нажатие во время drag и отпускание до drop; modifier из capture hotkey также учитывается. Проверить marker click/type/Enter, move/edit/delete, arrow/rectangle, Undo/Redo. Comment body остаётся text, не рисуется на image.
 4. Escape gesture/editor не теряет остальной draft; Discard annotated screenshot спрашивает подтверждение. Commit закрывает все overlays, A/B numbering и Added toast соответствуют сессии.
 5. В известном receiver с тестовыми данными вставить A/B + multiline RU/EN comments настоящим hotkey: release keys, image order, отдельные attachments и editable text. Смена foreground останавливает оставшиеся requests; retry может дублировать уже отправленные.
 6. Clear Cancel/Esc/X и default Enter сохраняют session; Confirm удаляет session/rasters и следующий capture начинает A/A1. Settings close возвращает background utility. Exit с session предупреждает; после confirmed exit нет tray/overlays, shortcuts свободны.
 
 Для docs-only change GUI smoke не обязателен, если команды/контракты проверены по источникам и не утверждается новый PASS.
+
+### Unreleased Capture UX / reserved shortcut acceptance
+
+Полный suite включает CaptureUxChecks: filtering/repeat/injected cases, installation/save failure rollback, native install/rebind/dispose cycles, старые settings и restart persistence, все Ctrl/Shift/Alt drop/Space варианты, RGB comparison обоих output paths с frozen crop. Existing annotation stress намеренно удерживает modifier. Эти checks не доказывают физическое подавление Snipping Tool; синтетический SendInput помечен injected и намеренно пропускается hook.
+
+HotkeyPolicyChecks проверяет action-specific backend selection, ordinary registration success/failure, отсутствие hook fallback, chord/backend-aware reuse и rollback при переносе Win+Shift+S между actions, error classification и сохранение persisted bytes при отказе Settings. Controlled native conflict проверяет сохранение Capture hook при неудачном rebind. Inline conflict previews EN/RU × Dark/Light — `artifacts/settings-conflict-*.png`; конкретный global chord должен быть виден без предположения о владельце. Для ordinary OS shortcuts acceptance определяется результатом RegisterHotKey, а не гарантией override всех Windows shell paths.
+
+ShortcutRecordingChecks покрывает left/right Win с Shift/Ctrl/Alt, repeats, seeded modifiers, оба порядка release, injected filtering, Esc и Win-only gesture. Native WH_KEYBOARD_LL + SendInput integration использует verification-only opt-in для injected input и проверяет полный chord в RegisterHotKey seam, failure/error UI, persistence, смену recording field, Reset defaults, hide/deactivation/close/shutdown с удерживаемыми keys и native thread disposal cycles.
+
+После закрытия пользовательской копии на подготовленном desktop проверить руками:
+
+- Записать Win+Shift+X для Paste/Clear, Win+Shift+V и Win+Shift+S для каждого action; проверить полный chord, прежний binding при отказе, Esc, focus loss, close и Win-only release без зависшего Start/menu. Runtime Capture=Win+Shift+S должен по-прежнему подавлять Snipping Tool после закрытия Settings.
+- При обычном Capture оба shortcut доступны: ScreenIt shortcut открывает ScreenIt, Win+Shift+S — Snipping Tool. Отменить каждый capture.
+- Settings → Capture record → физический Win+Shift+S: распознаётся, сохраняется и отображается. Закрыть Settings, нажать shortcut: только ScreenIt, без Snipping Tool и двойного capture/repeats. Проверить обе стороны Win/Shift и отсутствие Start menu после release.
+- Перезапустить тестовую копию: binding/modifier сохраняются. Изменить Capture обратно: сразу работает Snipping Tool. Назначить повторно и выйти: штатный shortcut восстановлен. Windows configuration не меняется.
+- Для Ctrl/Shift/Alt: press/release во время selection переключает только modifier hint и мягкое внешнее свечение, без внутренней заливки/геометрических скачков; проверить Dark/Light, обе DPI, края монитора и Windows animation-disabled state. Drop/Space используют текущее физическое состояние.
+- Quick A → annotated B → Quick C, настоящий Paste Session в disposable receiver: порядок/текст/session сохраняются. На output нет рамки, glow, hint, toolbar/editor. Проверить Esc и cancel draft без расходования letter.
+- Shutdown с installed reserved hook, cancel recording, переходы Settings, capture cancellation и sleep/lock return: нет оставшегося hook/зависшего thread. Поведение сторонних keyboard hooks/secure desktop и восстановление после Windows LowLevelHooksTimeout требуют target-machine acceptance; Windows может молча снять сторонний hook при OS scheduling stalls.
+
+Не считать выполненный message-based production smoke доказательством physical shortcut acceptance. Отчёты находятся в ignored artifacts; не изменять release packages/version для этих проверок.
 
 ### Дополнительно по подсистеме
 
