@@ -10,14 +10,14 @@ ScreenIt is a local-first Windows screenshot annotation utility designed for qui
 
 **Capture → Point → Comment → Continue → Paste**
 
-Capture a region or full monitor and annotate directly on the frozen desktop overlay. There is no separate image editor window. Markers **A1**, **A2**, etc. connect points in the image to comments that remain real, editable text. Capture B, C, and more into the same session.
+Capture a region, window, or full monitor and annotate directly in the desktop overlay. There is no separate image editor window. Markers **A1**, **A2**, etc. connect points in the image to comments that remain real, editable text. Capture B, C, and more into the same session.
 
 Focus your chat/composer and press **Ctrl+Alt+V once**. ScreenIt sequentially pastes each screenshot as a separate image, followed by structured comments.
 
 ## Features
 
 - Windows 11 x64 tray utility with global shortcuts.
-- Region/full-monitor capture, multi-monitor and mixed-DPI foundation.
+- Region/window/full-monitor capture, multi-monitor and mixed-DPI foundation.
 - Markers with structured comments; marker move/edit/delete.
 - Arrows, rectangles, and Undo/Redo for the current screenshot.
 - Multi-screenshot sessions: A, B, C… Z, AA…
@@ -55,6 +55,8 @@ Download **ScreenIt-0.1.2-win-x64-portable.zip** from [Releases](https://github.
 4. Focus the target composer; press **Ctrl+Alt+V** once and release the keys. Images arrive in session order, with editable comments last.
 5. **Ctrl+Alt+X** → confirm Clear for a new session. Cancel, Escape, or closing confirmation preserves your session. Clear resets numbering to A/A1.
 
+For a window screenshot, press **W** in capture selection, hover an eligible window and click. W returns to Region; Space still captures the focused monitor. Hold the configured annotation modifier at click to annotate. Window capture uses Windows.Graphics.Capture for the selected HWND, including ordinary title bar/chrome: overlapping windows and ScreenIt highlights are excluded. Unlike region/monitor capture, window pixels are acquired at click, not from the initial frozen desktop. A large or cross-monitor window is fitted into the annotation overlay for editing; its screenshot retains the full physical resolution.
+
 Stay in the same target window during Paste Session. Focus changes or errors stop pasting; your ScreenIt session is unchanged. Already pasted items cannot be rolled back, and retry may produce duplicates.
 
 Tray → **Settings** opens General, Hotkeys, and About. General selects **System / Dark / Light** and **English / Русский**; changes apply immediately. New installations default to System and the Windows UI language (Russian or English fallback). Existing Dark/Light preferences are preserved. System follows changes to the Windows app theme.
@@ -76,6 +78,8 @@ The first three shortcuts are configurable global defaults; the others apply ins
 | Capture | `Ctrl+Alt+S` |
 | Paste Session | `Ctrl+Alt+V` |
 | Clear Session | `Ctrl+Alt+X` |
+| Switch Region / Window selection | `W` |
+| Full focused monitor | `Space` |
 | Marker | `M` |
 | Arrow | `A` |
 | Rectangle | `R` |
@@ -121,6 +125,7 @@ Compatibility with other applications may vary depending on how they handle Wind
 - Windows-reserved shortcuts and combinations registered by another app may be unavailable, except the scoped Win+Shift+S Capture support. Physical Snipping Tool suppression requires manual acceptance on the target Windows desktop.
 - Unsigned installer and executable.
 - Physical 150%/200% DPI, portrait, HDR/protected content, and system transitions are not fully manually tested.
+- Window selection excludes ScreenIt's process, hidden/minimized/cloaked windows, tool/menu windows, taskbar and desktop infrastructure. Protected/excluded capture, exclusive fullscreen, unusual transparent surfaces and HDR may be unavailable or render differently. Failed acquisition keeps selection available; no desktop-crop fallback is used. A brief Windows capture indicator may appear. Separate owned dialogs are separate targets; independent popup windows are not merged into the target frame. Browser/Explorer/accelerated-app compatibility requires manual acceptance on the target desktop.
 
 ## Development
 

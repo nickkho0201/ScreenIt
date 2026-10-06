@@ -4,14 +4,14 @@
 
 ## System overview
 
-ScreenIt — Windows tray utility для накопления снимков с аннотациями и передачи их в выбранное приложение. Основного постоянно открытого окна нет. Сессия и изображения находятся в RAM; сеть используется только по явным командам updater. Нет backend, account, telemetry, persistent history, window capture или пользовательского Save As.
+ScreenIt — Windows tray utility для накопления снимков с аннотациями и передачи их в выбранное приложение. Основного постоянно открытого окна нет. Сессия и изображения находятся в RAM; сеть используется только по явным командам updater. Нет backend, account, telemetry, persistent history или пользовательского Save As. Текущие исходники включают Unreleased Window capture.
 
 ```text
 WM_HOTKEY / reserved shortcut message / tray Capture / tray double-click
   → Coordinator.Capture
   → monitor enumeration + sequential BitBlt (worker thread)
   → frozen frames → per-monitor AnnotationOverlay
-  → region drag / Space → crop + ScreenshotDraft
+  → region drag / Space / W + window click → source + ScreenshotDraft
   → Painter.Project/Render → Session.Commit + Rasters
   → overlays close → short feedback
 
@@ -52,7 +52,7 @@ Production entry point — `src/ScreenIt.App/Program.cs: Program.Main`; verifica
 3. Coordinator создаёт скрытое control Window/`HwndSource`, добавляет message hook, регистрирует hotkeys и WTS notifications, создаёт WinForms NotifyIcon/ContextMenuStrip. WPF владеет HWND/DPI initialization; WinForms используется для tray UI.
 4. На startup запускается conservative cleanup clipboard PNG generations. После успешного возвращения конструктора Coordinator production `Application.Startup` вызывает однократный `NotifyStarted`: локализованный background toast на primary monitor, без Settings/активации. Проверка mutex предшествует созданию Application/Coordinator, поэтому второй process не показывает toast. Update check на startup отсутствует. В ожидании действий работает dispatcher/message loop.
 5. Capture устанавливает `busy`, скрывает toast и Settings, закрывает tray menu, делает render yield и `DwmFlush`, снимает frames в `Task.Run`, проверяет topology и создаёт overlays. После всех `ContentRendered` (timeout 5 секунд) проверяет physical placement и фокусирует primary overlay.
-6. Drag/Space создаёт draft и crop в выбранном overlay; Coordinator назначает единственный `Active`. Без annotation modifier сразу вызывается обычный Commit, с удерживаемым modifier остаётся существующий annotation mode. Остальные overlays продолжают показывать frozen monitors, но не редактируют draft.
+6. Drag/Space либо Window click создаёт draft и detached source в выбранном overlay; Coordinator назначает единственный `Active`. Без annotation modifier сразу вызывается обычный Commit, с удерживаемым modifier остаётся существующий annotation mode. Остальные overlays продолжают показывать frozen monitors, но не редактируют draft.
 7. Commit допускается для текущего Active, вне editing и suspension. Сначала render, затем `Session.Commit`, затем raster pair по GUID. Все overlays закрываются, отображается Added toast. Cancel закрывает временные окна без добавления снимка.
 8. Paste/Copy используют committed snapshot. Clear блокируется при capture/paste, иначе открывает единственный owned modeless confirmation; только Accepted очищает Session и Rasters. Cancel/Escape/X/обычный Enter сохраняют сессию.
 9. Закрытие Settings уничтожает только это окно. Tray Exit или `WM_CLOSE` control запускает Exit: закрывает Clear dialog, запрашивает подтверждение при наличии committed снимков, затем Dispose и Application.Shutdown.
@@ -85,7 +85,7 @@ Region ограничен одним монитором. Минимум selectio
 
 Выбор региона автоматически создаёт detached frozen crop и ScreenshotDraft в том же HWND; отдельного editor window нет. При mouse-up и Space физическое состояние настроенного Ctrl/Shift/Alt читается через GetAsyncKeyState: удержание сохраняет annotation mode, иначе сразу вызывается тот же Coordinator.Commit. Клавиша может входить в capture hotkey, быть нажата во время drag или отпущена перед drop. Прямой clipboard transfer не добавлен. Default tool — Marker. Новый marker существует в model только после непустого comment commit; Escape editor не расходует номер. Номера high-water не переиспользуются после Delete/Undo. Arrow минимум 4 px; Box минимум 3×3 px. Undo/Redo — snapshots текущего draft, не всей session; committed draft sealed.
 
-PreviewKeyDown/Up и activation/deactivation обновляют visual modifier state без polling. Верхний hint содержит отдельный локализованный modifier element. SelectionGlow — WPF element с мягкими внешними accent rings, clipped вне region; исходная тонкая рамка остаётся в Surface. Dependency-property animations дают 140 ms fade и 1.5 s breathing, при SystemParameters.ClientAreaAnimation=false — статичный highlight. При закрытии clocks снимаются. Ни этот UI, ни hint не передаются Painter: оба commit paths используют crop исходного Frame.Image.
+PreviewKeyDown/Up и activation/deactivation обновляют visual modifier state без polling. Верхний hint содержит отдельный локализованный modifier element. SelectionGlow — WPF element с мягкими внешними accent rings, clipped вне region/window target; исходная тонкая рамка остаётся в Surface. Dependency-property animations дают 140 ms fade и 1.5 s breathing, при SystemParameters.ClientAreaAnimation=false — статичный highlight. При закрытии clocks снимаются. Ни этот UI, ни hint не передаются Painter: region/monitor используют crop исходного Frame.Image, window — detached WGC source.
 
 При Deactivated/LostMouseCapture откатывается незавершённый gesture, frozen frame и comment editor сохраняются. Escape сначала отменяет gesture/edit, затем capture; draft с сохранёнными annotations требует Discard confirmation. Overlay close/Alt+F4 направляется в Coordinator.Cancel через `ClosingByApp` guard.
 
@@ -93,7 +93,11 @@ PreviewKeyDown/Up и activation/deactivation обновляют visual modifier 
 
 ### Window selection
 
-Window enumeration/hit-testing для screenshot target отсутствуют. `Geo.Hit` выбирает annotations, а не desktop windows: маркеры имеют приоритет, затем проверяются arrow segment/box edges. `GetWindowRect` используется для собственных HWND placement. `PasteInput` получает foreground root через `GetForegroundWindow`/`GetAncestor(GA_ROOT)` и PID, чтобы проверять receiver; не перечисляет/фильтрует screenshot windows и не измеряет их capture bounds.
+Capture начинается в Region; W переключает Region/Window, Space независимо от режима снимает focused monitor. WindowTargets перечисляет top-level HWND в z-order, исключает текущий PID, invisible/minimized/cloaked, tiny bounds, tool/menu windows, taskbar/Progman/WorkerW и windows с capture exclusion affinity. Normal owned dialogs остаются отдельными targets. Bounds — DWMWA_EXTENDED_FRAME_BOUNDS с GetWindowRect fallback, physical screen coordinates. Child controls не становятся targets. WindowSelection владеет scoped out-of-context WinEvent hook и snapshot: native callback только запускает одноразовый coalesced 50 ms refresh; MouseMove ищет в snapshot без EnumWindows/capture. Перед click snapshot синхронно обновляется для повторного hit testing, исключая окно, переместившееся до coalesced refresh. Окна процесса ScreenIt исключены по PID, включая overlays/settings/toasts. Все overlays рисуют одну physical target rectangle через собственный TransformToDevice; cross-monitor rectangle не обрезается до source monitor.
+
+Click считывает annotation modifier и запускает WindowCapture на MTA worker. Backend — Windows.Graphics.Capture CreateForWindow, CreateFreeThreaded frame pool, D3D11 BGRA staging readback. Native ABI ограничен WindowCapture.cs; SDK projection/third-party dependencies не добавлены. FrameArrived — agile COM event sink, callback только сигналит event, worker ждёт event/cancellation с 4 s timeout. COM references удерживают callback до последнего Release. Frame/session/pool IClosable и D3D interfaces освобождаются в finally, Map/Unmap парные. Source Size/ContentSize проверяются; resize/invalid HWND/слишком большой (>40 Mpx) source безопасно отклоняется. Source — полный WGC-defined frame с normal non-client chrome, без desktop occluder, ScreenIt UI и cursor. Shadow/rounded-corner/alpha поведение задаётся Windows. HWND/PID перепроверяются перед и после acquisition. Protected surfaces/unsupported GPU/HDR/exclusive fullscreen могут не поддерживаться; PrintWindow/desktop-crop fallback отсутствует. Краткий системный capture indicator не подавляется.
+
+Region/monitor используют initial frozen Frame.Image; window получает текущие pixels при click. ChooseBitmap создаёт тот же ScreenshotDraft и Active; Commit/Painter/Session/Rasters/sequencer не меняются. Для window annotation source целиком показан в выбранном monitor overlay, SourceScale<=1 преобразует input/editor placement/render, source/draft/painter geometry остаётся physical pixels полного bitmap. Region использует SourceScale=1. Window highlight/tint/glow существуют только в UI, не передаются в Painter. Esc/close/suspend/shutdown отменяют acquisition и освобождают selection hooks; worker завершает owned cleanup, shutdown по-прежнему не имеет общего async drain. `Geo.Hit` выбирает annotations, не HWND; PasteInput receiver discovery остаётся независимым.
 
 ## Clipboard and file output
 
@@ -162,6 +166,7 @@ Inno AppId `{75AF53B9-2BC6-4AC3-A7D4-859884B5EAF0}` и mutex `Local\ScreenIt.MVP
 | Boundary | Windows facilities |
 |---|---|
 | Capture — `Native.cs` | `user32` monitor enumeration/GetDC/GetWindowRect/SetWindowPos, `gdi32` DC/DIB/BitBlt/object cleanup, `shcore` monitor DPI, `dwmapi` DwmFlush. |
+| Window capture — `WindowTargets`, `WindowSelection`, `WindowCapture` | `user32` top-level z-order/PID/visibility/WinEvent, `dwmapi` frame bounds/cloaking, WinRT HWND GraphicsCaptureItem/free-threaded pool and D3D11 staging readback. Scoped event/cancellation ownership; no desktop-crop fallback. |
 | HWND/UI — `Program`, `Coordinator`, overlays | WPF Application/Dispatcher/HwndSource hooks, PerMonitorV2 manifest, WinForms NotifyIcon/menu; WM_HOTKEY, WM_CLOSE, display/settings/theme/DPI/power/WTS messages. |
 | Session/power — `Coordinator` | `wtsapi32` session notification registration; lock/unlock и power transitions suspend capture, без secure-desktop acquisition. |
 | Clipboard — `ClipboardTransport.cs` | `user32` clipboard formats/open/empty/set/close; `kernel32` HGLOBAL allocation/locking/free. Shell CF_HDROP file-list layout; actual image data хранится в PNG files. |
@@ -201,7 +206,7 @@ Capture catch закрывает overlays и сообщает safe error; commit
 ## Known limitations and evidence boundaries
 
 - RAM-only sessions без cap/history/crash recovery; original+annotated rasters и draft snapshot stacks увеличивают memory usage. Committed снимки нельзя reopen.
-- Нет window capture, cross-monitor region, persistent Save As, startup integration, cross-platform backend и receiver acknowledgement.
+- Нет cross-monitor region, persistent Save As, startup integration, cross-platform backend и receiver acknowledgement. Window capture в Unreleased использует WGC; real WPF occlusion/DPI/resource checks не доказывают совместимость всех browsers/accelerated/protected/HDR surfaces.
 - Нет awaited capture/preparation shutdown и универсального transaction rollback для clipboard, session/raster commit или settings.
 - README сообщает manual PASS для ChatGPT Web sequential paste и текущей 100%/125% mixed-DPI topology с negative origin. Физические 150%/200%, portrait, HDR/protected content и system transitions полностью не подтверждены.
 - Архивный [clipboard RESULTS](spikes/clipboard-transfer/RESULTS.md) в заключительном production note ещё помечает Web acceptance OPEN/NOT TESTED, тогда как текущий README сообщает PASS. Это расхождение evidence chronology; точные receiver versions и обновлённая tracked acceptance matrix отсутствуют. Не расширять совместимость на все приложения.

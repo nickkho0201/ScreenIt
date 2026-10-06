@@ -94,6 +94,16 @@ Smoke временно записывает deterministic EN/dark/default или
 
 ## Manual smoke testing
 
+### Window capture (Unreleased)
+
+Release App: обычный Capture → W → hover/click. W возвращает Region; Space всегда full focused monitor, configured modifier при click/Space открывает Annotation. Window pixels берутся при click через WGC, Region/monitor остаются frozen. Вручную проверить Explorer/browser/IDE, частично перекрытое окно (click по exposed части), Settings PID exclusion, maximized/borderless/accelerated surfaces, current mixed DPI/negative origin и cross-monitor target, A/B/C → Paste. Не обещать protected/HDR/exclusive-fullscreen compatibility без evidence; WGC-defined chrome/rounded corners и системный capture indicator зависят от Windows.
+
+```powershell
+.\verification\ScreenIt.Verification\bin\Release\net10.0-windows\ScreenIt.Verification.exe --window-only
+```
+
+WindowCaptureChecks входят также в полный suite. Native fixture — отдельный verification process с WPF target/foreground occluder; no production settings/network/installer. Проверки реально используют CreateForWindow/D3D readback, pixel comparison, 20 capture cycles/handle bounds, full Session integration, own PID filtering, Region/Window keyboard lifecycle, Space, actual monitor DPI/origin и cross-monitor source. Fixture завершается через WM_CLOSE; аварийный cleanup Kill ограничен собственным fixture process. Outputs — ignored `artifacts/window-verification.json` и `artifacts/window-capture/*.png`, в том числе RU/EN Light/Dark hints. Native ABI требует x64 (existing platform); build использует AllowUnsafeBlocks только App, без новых packages или version/release изменений. Standard suite/smoke preconditions сохраняются.
+
 ### Updater UI review (Unreleased)
 
 Safe deterministic harness, separate verification executable:
@@ -155,7 +165,7 @@ ShortcutRecordingChecks покрывает left/right Win с Shift/Ctrl/Alt, rep
 | Preferences/hotkeys/UI | Restart persistence, theme-only baseline, malformed/oversized settings, unknown fields, save denial, conflict/duplicate/default reset rollback, EN/RU и System theme changes; user text не переводится. |
 | Installer/updater | Installed/portable detection, equal/older/prerelease exclusion, unavailable/malformed release, invalid/missing/duplicate SHA, Cancel/launch failure, RAM-loss warning и running-copy mutex. Использовать disposable Windows account/VM для реальной install проверки. |
 
-Window capture и Save As в smoke не включаются: соответствующего UI/flow нет. Startup проверяется как background startup; autostart не реализован.
+Production Smoke.ps1 не выбирает HWND: Window capture проверяется отдельными native WindowCaptureChecks/--window-only и manual acceptance. Save As не реализован. Startup проверяется как background startup; autostart не реализован.
 
 ## Packaging
 

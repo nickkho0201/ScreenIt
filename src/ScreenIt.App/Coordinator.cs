@@ -38,6 +38,8 @@ internal sealed class Coordinator : IDisposable
     internal string SessionStatus => count.Text ?? "";
     internal ToastService Toasts { get; } = new();
     public int OverlayCount => overlays.Count;
+    internal long CaptureGeneration { get; private set; }
+    internal Exception? LastCaptureFailure { get; private set; }
     internal IntPtr ControlHandle => source.Handle;
     public Coordinator(bool showTray = true, bool registerHotkey = true,Preferences? preferences=null)
     {
@@ -151,6 +153,7 @@ internal sealed class Coordinator : IDisposable
         if (ConfirmationOpen || UtilityUi.PromptOpen) { ClearDialog?.BringForward();Update("Close the Clear Session confirmation first"); return; }
         if (disposed || busy) return;
         if (overlays.Count != 0) { ReturnToDraft(); return; }
+        CaptureGeneration++;LastCaptureFailure=null;
         busy = true; Toasts.Hide(); Settings?.Hide();Update(); menu.Close();
         try
         {
@@ -166,10 +169,61 @@ internal sealed class Coordinator : IDisposable
             foreach (var overlay in overlays) overlay.Placement();
             overlays.FirstOrDefault(o => o.Frame.Monitor.Primary)?.ReturnFocus();
         }
-        catch (Exception ex) { CloseOverlays(); Error(L.T("Capture could not complete.")+" " + L.T(SafeError(ex))); }
+        catch (Exception ex) { LastCaptureFailure=ex;CloseOverlays();System.Diagnostics.Trace.TraceError("ScreenIt capture failed: {0}",ex);Error(L.T("Capture could not complete.")+" " + L.T(SafeError(ex))); }
         finally { busy = false; Update(); }
     }
     public bool IsCurrent(AnnotationOverlay overlay) => overlays.Contains(overlay);
+    internal bool WindowMode { get; private set; }
+    internal bool WindowAcquiring { get; private set; }
+    internal WindowTarget? WindowHover { get; private set; }
+    private WindowSelection? windowSelection;
+    private CancellationTokenSource? windowCancellation;
+    internal void ToggleWindowMode()
+    {
+        if(Active!=null || WindowAcquiring || suspended) return;
+        try
+        {
+            WindowMode=!WindowMode;
+            foreach(var overlay in overlays) overlay.InterruptGesture();
+            windowSelection?.Dispose();windowSelection=null;WindowHover=null;
+            if(WindowMode) { windowSelection=new();windowSelection.Changed+=()=>HoverWindow(WindowTargets.Cursor());HoverWindow(WindowTargets.Cursor()); }
+            foreach(var overlay in overlays) overlay.Refresh();
+        }
+        catch(Exception ex) { WindowMode=false;WindowHover=null;windowSelection?.Dispose();windowSelection=null;Error(L.T("Window capture is unavailable. Try region capture.")+" "+L.T(SafeError(ex)));foreach(var overlay in overlays) overlay.Refresh(); }
+    }
+    internal void HoverWindow(P screen)
+    {
+        if(!WindowMode || WindowAcquiring) return;
+        var next=windowSelection?.At(screen);if(next==WindowHover) return;WindowHover=next;
+        foreach(var overlay in overlays) overlay.Refresh();
+    }
+    internal async Task CaptureWindow(AnnotationOverlay overlay,bool annotate,P? clickPoint=null)
+    {
+        if(!IsCurrent(overlay) || !WindowMode || WindowAcquiring || (WindowHover==null && clickPoint==null) || suspended) return;
+        var target=WindowHover;
+        WindowAcquiring=true;busy=true;var cancellation=new CancellationTokenSource();windowCancellation=cancellation;
+        try
+        {
+            if(clickPoint is { } point)
+            {
+                WindowHover=windowSelection?.At(point,true);
+                if(WindowHover is not { } selected) { foreach(var item in overlays) item.Refresh();return; }
+                target=selected;
+            }
+            foreach(var item in overlays) item.ShowHint("Capturing window…");
+            var image=await WindowCapture.Capture(target!,cancellation.Token);
+            if(disposed || suspended || cancellation.IsCancellationRequested || !IsCurrent(overlay)) return;
+            windowSelection?.Dispose();windowSelection=null;WindowMode=false;WindowHover=null;
+            overlay.ChooseBitmap(image);
+            if(!annotate) Commit(overlay);
+        }
+        catch(OperationCanceledException) when(cancellation.IsCancellationRequested) { }
+        catch(Exception ex)
+        {
+            if(!disposed && IsCurrent(overlay) && !suspended) { Error(L.T("Could not capture this window. Select another window or use region capture.")+" "+L.T(SafeError(ex)));foreach(var item in overlays) item.Refresh(); }
+        }
+        finally { if(ReferenceEquals(windowCancellation,cancellation)) windowCancellation=null;cancellation.Dispose();WindowAcquiring=false;busy=false;if(!disposed) Update(); }
+    }
     public void SelectMonitor(AnnotationOverlay selected)
     {
         foreach (var other in overlays.Where(o => o != selected)) { other.RegionSelection.Clear(); other.Refresh(); }
@@ -202,13 +256,14 @@ internal sealed class Coordinator : IDisposable
     }
     public void Suspend(string reason)
     {
-        if (suspended || overlays.Count == 0) return; suspended = true;
+        if (suspended || overlays.Count == 0) return; suspended = true;windowCancellation?.Cancel();windowSelection?.Dispose();windowSelection=null;
         foreach (var overlay in overlays) { overlay.InterruptGesture(); overlay.Hide(); }
         Update("Capture suspended");
         Application.Current.Dispatcher.BeginInvoke(() => Error(L.T(reason)+" "+L.T("Your screenshot is still available. Use Capture to cancel and start again.")));
     }
     private void CloseOverlays()
     {
+        windowCancellation?.Cancel();windowSelection?.Dispose();windowSelection=null;WindowMode=false;WindowHover=null;
         foreach (var overlay in overlays) { overlay.ClosingByApp = true; overlay.Close(); }
         overlays.Clear(); Active = null; suspended = false;
     }

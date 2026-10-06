@@ -73,6 +73,8 @@ internal sealed class AnnotationOverlay : Window
     public Selection RegionSelection { get; } = new();
     public PxRect Region { get; private set; }
     public BitmapSource Crop { get; private set; } = null!;
+    internal double SourceScale { get; private set; }=1;
+    internal PxRect? WindowHighlight => owner.WindowMode && owner.WindowHover is { } target ? new(target.Bounds.X-Frame.Monitor.Left,target.Bounds.Y-Frame.Monitor.Top,target.Bounds.Width,target.Bounds.Height) : null;
     public bool AnnotationMode => owner.Active != null;
     internal IReadOnlyList<Button> ToolbarButtons => annotationButtons;
     internal bool ToolHighlighted(Tool tool) => toolButtons[tool].FontWeight == FontWeights.SemiBold;
@@ -155,11 +157,13 @@ internal sealed class AnnotationOverlay : Window
     private P InputPoint(MouseEventArgs e)
     {
         var p = e.GetPosition(surface); var t = DeviceTransform; var physical = Geo.FromDip(new(p.X,p.Y),t.M11,t.M22);
-        return !AnnotationMode ? physical : new(physical.X-Region.X,physical.Y-Region.Y);
+        return !AnnotationMode ? physical : new((physical.X-Region.X)/SourceScale,(physical.Y-Region.Y)/SourceScale);
     }
     private void Down(object sender,MouseButtonEventArgs e) { e.Handled = true; BeginPointer(InputPoint(e),e.ClickCount); }
     public void BeginPointer(P p,int clickCount = 1)
     {
+        if(owner.WindowAcquiring) return;
+        if(!AnnotationMode && owner.WindowMode) { Activate();surface.Focus();_=owner.CaptureWindow(this,AnnotationHeld(),new(p.X+Frame.Monitor.Left,p.Y+Frame.Monitor.Top));return; }
         if (!AnnotationMode) { Activate(); surface.Focus(); owner.SelectMonitor(this); RegionSelection.Begin(p); surface.CaptureMouse(); Refresh(); return; }
         if (!Editable) { owner.ReturnToDraft(); return; }
         if (p.X<0 || p.Y<0 || p.X>=Model.Width || p.Y>=Model.Height) return;
@@ -177,6 +181,7 @@ internal sealed class AnnotationOverlay : Window
     }
     public void MovePointer(P p)
     {
+        if(!AnnotationMode && owner.WindowMode) { owner.HoverWindow(new(p.X+Frame.Monitor.Left,p.Y+Frame.Monitor.Top));return; }
         if (!AnnotationMode) { RegionSelection.Move(p,Frame.Monitor.Width,Frame.Monitor.Height); Refresh(); return; }
         if (!dragging) return; p=Geo.Clamp(p,Model.Width,Model.Height);
         if (moving != null) gesture = new BadgeGlyph(moving.Id,moving.Label,Geo.Clamp(new(moving.Anchor.X+p.X-down.X,moving.Anchor.Y+p.Y-down.Y),Model.Width,Model.Height));
@@ -218,7 +223,7 @@ internal sealed class AnnotationOverlay : Window
     private void LayoutEditor()
     {
         var t=DeviceTransform;
-        EditorBounds=Geo.Editor(new(editingAnchor.X+Region.X,editingAnchor.Y+Region.Y),320*t.M11,205*t.M22,Frame.Monitor.Width,Frame.Monitor.Height);
+        EditorBounds=Geo.Editor(new(editingAnchor.X*SourceScale+Region.X,editingAnchor.Y*SourceScale+Region.Y),320*t.M11,205*t.M22,Frame.Monitor.Width,Frame.Monitor.Height);
         Canvas.SetLeft(editorHost,EditorBounds.X/t.M11); Canvas.SetTop(editorHost,EditorBounds.Y/t.M22);
         editorHost.Width=EditorBounds.Width/t.M11; editorHost.Height=EditorBounds.Height/t.M22;
     }
@@ -248,8 +253,11 @@ internal sealed class AnnotationOverlay : Window
         UpdateModifierVisual();
         if (!AnnotationMode)
         {
-            if (e.Key==Key.Escape) { if (RegionSelection.Active) InterruptGesture(); else owner.Cancel(); }
-            else if ((e.Key==Key.System ? e.SystemKey : e.Key)==Key.Space) { bool annotate=AnnotationHeld();InterruptGesture(); owner.SelectMonitor(this); RegionSelection.Full(Frame.Monitor.Width,Frame.Monitor.Height); CompleteSelection(RegionSelection.Completed!.Value,annotate); }
+            var key=e.Key==Key.System ? e.SystemKey : e.Key;
+            if(owner.WindowAcquiring) { if(key==Key.Escape) owner.Cancel();e.Handled=true;return; }
+            if (key==Key.Escape) { if (RegionSelection.Active) InterruptGesture(); else owner.Cancel(); }
+            else if(key==Key.W && !e.IsRepeat) owner.ToggleWindowMode();
+            else if (key==Key.Space) { bool annotate=AnnotationHeld();InterruptGesture(); owner.SelectMonitor(this); RegionSelection.Full(Frame.Monitor.Width,Frame.Monitor.Height); CompleteSelection(RegionSelection.Completed!.Value,annotate); }
             else return;
             e.Handled=true; return;
         }
@@ -305,7 +313,7 @@ internal sealed class AnnotationOverlay : Window
         status.Inlines.Clear();
         if(!AnnotationMode)
         {
-            status.Inlines.Add(new Run(L.T("Drag a region")+" · "));
+            status.Inlines.Add(new Run(L.T(owner.WindowMode ? "Select a window · W — region" : "Drag a region · W — window")+" · "));
             modifierHint.Text=string.Format(L.T("{0} — annotations"),owner.Preferences.AnnotationModifier);
             status.Inlines.Add(modifierInline);
             status.Inlines.Add(new Run(" · "+L.T("Space full monitor · Esc cancel")));
@@ -329,6 +337,14 @@ internal sealed class AnnotationOverlay : Window
         var detached=BitmapSource.Create(region.Width,region.Height,96,96,crop.Format,null,pixels,stride); detached.Freeze(); Crop=detached;
         Model=owner.Session.CreateDraft(region.Width,region.Height); owner.ActivateDraft(this); ReturnFocus(); Refresh();
     }
+    internal void ChooseBitmap(BitmapSource image)
+    {
+        if(AnnotationMode || !image.IsFrozen) throw new InvalidOperationException("Window source must be detached and frozen.");
+        Crop=image;SourceScale=Math.Min(1,Math.Min((Frame.Monitor.Width-32d)/image.PixelWidth,(Frame.Monitor.Height-112d)/image.PixelHeight));
+        int width=(int)Math.Ceiling(image.PixelWidth*SourceScale),height=(int)Math.Ceiling(image.PixelHeight*SourceScale);
+        Region=new((Frame.Monitor.Width-width)/2,80+(Frame.Monitor.Height-112-height)/2,width,height);
+        Model=owner.Session.CreateDraft(image.PixelWidth,image.PixelHeight);owner.ActivateDraft(this);ReturnFocus();Refresh();
+    }
     public Glyph[] VisibleGlyphs()
     {
         if (!Editable) return []; var list=Painter.Project(Model.Items).ToList();
@@ -342,17 +358,20 @@ internal sealed class AnnotationOverlay : Window
         {
             dc.DrawImage(window.Frame.Image,new Rect(0,0,ActualWidth,ActualHeight)); var t=window.DeviceTransform;
             dc.PushTransform(new ScaleTransform(1/t.M11,1/t.M22)); dc.PushClip(new RectangleGeometry(new Rect(0,0,window.Frame.Monitor.Width,window.Frame.Monitor.Height)));
-            PxRect? region=window.Editable ? window.Region : !window.AnnotationMode ? window.RegionSelection.Preview ?? window.RegionSelection.Completed : null;
+            PxRect? region=window.Editable ? window.Region : !window.AnnotationMode ? window.WindowHighlight ?? window.RegionSelection.Preview ?? window.RegionSelection.Completed : null;
             var full=new Rect(0,0,window.Frame.Monitor.Width,window.Frame.Monitor.Height); var dim=new SolidColorBrush(Color.FromArgb(105,0,0,0));
             if (region is { } r)
             {
                 var hole=new Rect(r.X,r.Y,r.Width,r.Height);
                 dc.DrawGeometry(dim,null,new CombinedGeometry(GeometryCombineMode.Exclude,new RectangleGeometry(full),new RectangleGeometry(hole)));
                 dc.DrawRectangle(null,new Pen(UtilityUi.Accent,1),hole);
+                if(!window.AnnotationMode && window.owner.WindowMode) dc.DrawRectangle(new SolidColorBrush(((SolidColorBrush)UtilityUi.Accent).Color) { Opacity=.09 },null,hole);
             }
             else dc.DrawRectangle(dim,null,full);
             dc.PushTransform(new TranslateTransform(window.Region.X,window.Region.Y));
+            dc.PushTransform(new ScaleTransform(window.SourceScale,window.SourceScale));
             if (window.Editable) dc.PushClip(new RectangleGeometry(new Rect(0,0,window.Model.Width,window.Model.Height)));
+            if(window.Editable) dc.DrawImage(window.Crop,new Rect(0,0,window.Model.Width,window.Model.Height));
             if (window.Editable) Painter.Draw(dc,window.VisibleGlyphs(),window.Model.Width,window.Model.Height);
             if (window.Editable && window.Selected.HasValue && window.Model.Items.FirstOrDefault(a=>a.Id==window.Selected) is { } selected)
             {
@@ -365,7 +384,7 @@ internal sealed class AnnotationOverlay : Window
                 else if (selected is Box b) dc.DrawRectangle(null,pen,new Rect(b.Rect.X-3,b.Rect.Y-3,b.Rect.Width+6,b.Rect.Height+6));
                 else if (selected is Arrow a) { dc.DrawEllipse(UtilityUi.Accent,new Pen(Brushes.White,1.5),new Point(a.Start.X,a.Start.Y),4,4); dc.DrawEllipse(UtilityUi.Accent,new Pen(Brushes.White,1.5),new Point(a.End.X,a.End.Y),4,4); }
             }
-            if (window.Editable) dc.Pop(); dc.Pop(); dc.Pop(); dc.Pop();
+            if (window.Editable) dc.Pop(); dc.Pop(); dc.Pop(); dc.Pop(); dc.Pop();
         }
     }
     // UI-only soft rings, clipped to the outside: no tint or blur touches selected pixels.
@@ -373,7 +392,7 @@ internal sealed class AnnotationOverlay : Window
     {
         protected override void OnRender(DrawingContext dc)
         {
-            if(window.AnnotationMode || window.RegionSelection.Preview is not { } region) return;
+            if(window.AnnotationMode || (window.WindowHighlight ?? window.RegionSelection.Preview) is not { } region) return;
             double opacity=(double)window.GetValue(GlowOpacityProperty)*(double)window.GetValue(GlowStrengthProperty);
             if(opacity<=0) return;
             var t=window.DeviceTransform;var hole=new Rect(region.X/t.M11,region.Y/t.M22,region.Width/t.M11,region.Height/t.M22);

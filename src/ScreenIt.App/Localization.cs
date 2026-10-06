@@ -52,6 +52,11 @@ internal static class L
         foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) Tree(child);
     }
     private const string Catalog="""
+Drag a region · W — window|Выделите область · W — окно
+Select a window · W — region|Выберите окно · W — область
+Capturing window…|Захват окна…
+Window capture is unavailable. Try region capture.|Захват окна недоступен. Используйте выделение области.
+Could not capture this window. Select another window or use region capture.|Не удалось захватить это окно. Выберите другое окно или выделите область.
 {0} MB|{0} МБ
 {0} of {1}|{0} из {1}
 {0} downloaded|Скачано {0}

@@ -25,15 +25,16 @@ internal static class Verification
     [STAThread]
     private static int Main(string[] args)
     {
+        if(args.Length==2 && args[0]=="--window-fixture") { WindowCaptureChecks.Fixture(args[1]);return 0; }
         if(args.Contains("--update-ui-test",StringComparer.Ordinal)) { UpdateUiHarness.Run(args.Contains("--snapshot",StringComparer.Ordinal));return 0; }
         int exit = 0; var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         app.Startup += async (_, _) =>
         {
             object report;
-            try { if(args.Contains("--toast-static",StringComparer.Ordinal)) ToastChecks.Static(Check);else if(args.Contains("--updates-only",StringComparer.Ordinal)) await UpdateChecks.Run(Check);else await Run(); if(args.Contains("--check-updates",StringComparer.Ordinal)) { var actual=await new GithubUpdateSource().Check(System.Threading.CancellationToken.None);Check(actual==null,"Explicit live GitHub check: public latest is not newer than 0.1.2; no downgrade"); } report = new { status = "PASS", count = checks.Count, checks, machine = Native.Machine(), monitors = Native.Monitors(), latencyMs = latency.Count==0 ? null : Distribution(latency), resources, toastStress = ToastChecks.Stress, clearStress=ClearChecks.Stress,settingsStress=SettingsChecks.Stress,captureUxStress=CaptureUxChecks.Stress }; }
+            try { if(args.Contains("--toast-static",StringComparer.Ordinal)) ToastChecks.Static(Check);else if(args.Contains("--updates-only",StringComparer.Ordinal)) await UpdateChecks.Run(Check);else if(args.Contains("--window-only",StringComparer.Ordinal)) await WindowCaptureChecks.Run(Check);else await Run(); if(args.Contains("--check-updates",StringComparer.Ordinal)) { var actual=await new GithubUpdateSource().Check(System.Threading.CancellationToken.None);Check(actual==null,"Explicit live GitHub check: public latest is not newer than 0.1.2; no downgrade"); } report = new { status = "PASS", count = checks.Count, checks, machine = Native.Machine(), monitors = Native.Monitors(), latencyMs = latency.Count==0 ? null : Distribution(latency), resources, toastStress = ToastChecks.Stress, clearStress=ClearChecks.Stress,settingsStress=SettingsChecks.Stress,captureUxStress=CaptureUxChecks.Stress }; }
             catch (Exception ex) { exit = 1; report = new { status = "FAIL", checks, error = ex.ToString(), resources }; }
             var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../artifacts")); Directory.CreateDirectory(root);
-            File.WriteAllText(Path.Combine(root, args.Contains("--toast-static",StringComparer.Ordinal) ? "toast-static-verification.json" : args.Contains("--updates-only",StringComparer.Ordinal) ? "updater-verification.json" : "verification.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path.Combine(root, args.Contains("--toast-static",StringComparer.Ordinal) ? "toast-static-verification.json" : args.Contains("--updates-only",StringComparer.Ordinal) ? "updater-verification.json" : args.Contains("--window-only",StringComparer.Ordinal) ? "window-verification.json" : "verification.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
             Console.WriteLine(JsonSerializer.Serialize(report)); app.Shutdown();
         };
         app.Run(); return exit;
@@ -147,7 +148,7 @@ internal static class Verification
         Appearance.Select(UiTheme.Light);await Preview("light");
         Appearance.Select(UiTheme.Dark);await Preview("dark");
         await Clipboard();
-        await SettingsChecks.Run(Check);await UpdateChecks.Run(Check);
+        await SettingsChecks.Run(Check);await UpdateChecks.Run(Check);await WindowCaptureChecks.Run(Check);
     }
     private static async Task Polish(Coordinator coordinator)
     {
