@@ -8,8 +8,7 @@ using System.Windows.Automation;
 internal sealed class SettingsWindow : Window
 {
     private readonly Coordinator owner;
-    private readonly IUpdateSource updates;
-    private readonly CancellationTokenSource cancellation=new();
+    private readonly UpdateFlow updates;
     private int page;
     private GlobalAction? recording;
     private ShortcutRecordingHook? recorder;
@@ -17,11 +16,9 @@ internal sealed class SettingsWindow : Window
     private int recordingGeneration;
     internal bool RecorderInstalled => recorder!=null;
     internal bool RecordInjectedInput { get; set; } // Native verification only; production ignores synthetic input.
-    private bool updating;
     internal bool Recording => recording!=null;
     internal string ValidationError => L.T(error);
-    private string updateStatus="",error="";
-    private UpdateRelease? release;
+    private string error="";
     internal UiTheme AppliedTheme { get; private set; }
     internal int Page => page;
     internal void SelectPage(int value) { page=value;StopRecording();Refresh(); }
@@ -43,19 +40,22 @@ internal sealed class SettingsWindow : Window
         }
         Refresh();
     }
-    internal SettingsWindow(Coordinator owner,IUpdateSource? updates=null)
+    internal SettingsWindow(Coordinator owner,IUpdateSource? updates=null,UpdateFlow? updateFlow=null)
     {
-        this.owner=owner;this.updates=updates ?? new GithubUpdateSource();
+        this.owner=owner;
+        this.updates=updateFlow ?? new(updates ?? new GithubUpdateSource(),UpdateTransfer.Installed,
+            ()=>Task.FromResult(IsVisible && IsActive && UtilityUi.Confirm(this,"Install update?",L.T("ScreenIt will close to install the update. Your current screenshot session is stored only in memory and will be lost. Continue?")+"\n\n"+L.T("The installer is unsigned. Windows SmartScreen may show a warning."),"Install")),
+            installer=> { if(System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(installer) { UseShellExecute=true })==null) throw new IOException("Installer did not start."); },owner.ExitForUpdate,UpdateTransfer.OpenPage);
         Title="ScreenIt";Icon=UtilityUi.WindowIcon();Width=780;Height=620;MinWidth=700;MinHeight=510;WindowStartupLocation=WindowStartupLocation.CenterScreen;
         SourceInitialized+=(_,_)=>Refresh();
-        Closed+=(_,_)=> { StopRecording();recorderSource?.RemoveHook(RecorderMessage);recorderSource=null;cancellation.Cancel();cancellation.Dispose();Content=null; };
+        Closed+=(_,_)=> { StopRecording();recorderSource?.RemoveHook(RecorderMessage);recorderSource=null;this.updates.Dispose();Content=null; };
         PreviewKeyDown+=Record;
         Deactivated+=(_,_)=> { if(recording!=null) { StopRecording();Refresh(); } };
         IsVisibleChanged+=(_,_)=> { if(!IsVisible && recording!=null) { StopRecording();Refresh(); } };
         Refresh();
     }
     private static TextBlock Text(string value,double size=14,bool bold=false) => new() { Text=L.T(value),FontSize=size,FontWeight=bold ? FontWeights.SemiBold : FontWeights.Normal,Foreground=UtilityUi.Ink,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,12) };
-    private static Button Action(string label,Action action)
+    internal static Button Action(string label,Action action)
     {
         var button=UtilityUi.Button(label,label,action);button.Background=Appearance.Palette.Surface;button.BorderBrush=Appearance.Palette.Border;
         button.Height=42;button.HorizontalContentAlignment=HorizontalAlignment.Center;button.VerticalContentAlignment=VerticalAlignment.Center;button.Cursor=Cursors.Hand;button.HorizontalAlignment=HorizontalAlignment.Left;button.Margin=new Thickness(0,0,0,24);
@@ -189,13 +189,7 @@ internal sealed class SettingsWindow : Window
         {
             content.Children.Add(Text("ScreenIt "+GithubUpdateSource.CurrentVersion,18,true));content.Children.Add(Text("Local screenshot annotation utility for visual feedback."));
             content.Children.Add(Action("Open repository",()=>Open(new Uri(GithubUpdateSource.Repository))));
-            content.Children.Add(Text("Updates",16,true));var check=Action("Check for updates",async()=>await CheckUpdates());check.IsEnabled=!updating;content.Children.Add(check);
-            if(updateStatus.Length>0) content.Children.Add(Text(updateStatus));
-            if(release!=null)
-            {
-                bool installed=UpdateTransfer.Installed();var download=Action(installed ? "Download and install" : "Open release page",async()=> { if(installed) await Download();else Open(release.Page); });download.IsEnabled=!updating;content.Children.Add(download);
-                if(!installed) content.Children.Add(Text("Portable copy: install updates manually from the release page."));
-            }
+            content.Children.Add(Text("Updates",16,true));content.Children.Add(new UpdateSection(updates,Action));
         }
         if(error.Length>0) { var failure=Text(error);failure.Foreground=Appearance.Palette.Warning;failure.Margin=new Thickness(0,16,0,0);content.Children.Add(failure);if(page==1) failure.Loaded+=(_,_)=>failure.BringIntoView(); }
         Content=root;
@@ -232,34 +226,7 @@ internal sealed class SettingsWindow : Window
         var proposed=new Dictionary<GlobalAction,Hotkey>(owner.Preferences.Hotkeys) { [action]=key };
         error=owner.ChangeHotkeys(proposed) ? "" : owner.LastHotkeyFailure!.Message;StopRecording();Refresh();
     }
-    internal async Task CheckUpdates()
-    {
-        if(updating) return;updating=true;error="";release=null;updateStatus="Checking…";Refresh();
-        try { release=await updates.Check(cancellation.Token);updateStatus=release==null ? "You are up to date." : $"Version {release.Version} is available."; }
-        catch(OperationCanceledException) { return; }catch(Exception) { error="Update check failed. Please retry.";updateStatus=""; }
-        finally { updating=false;if(!cancellation.IsCancellationRequested) Refresh(); }
-    }
-    private async Task Download()
-    {
-        if(updating || release==null || !UpdateTransfer.Installed()) return;updating=true;error="";updateStatus="Downloading and verifying…";Refresh();
-        try
-        {
-            var path=await new UpdateTransfer(updates).Prepare(release,cancellation.Token);
-            if(cancellation.IsCancellationRequested) return;
-            // Recheck after download: installation identity and file integrity cannot change silently.
-            if(!UpdateTransfer.Installed()) throw new InvalidOperationException("Installation changed.");
-            await UpdateTransfer.Verify(path,Path.Combine(Path.GetDirectoryName(path)!,"SHA256SUMS.txt"),cancellation.Token);
-            try
-            {
-                UpdateTransfer.LaunchVerified(path,()=>UtilityUi.Confirm(this,"Install update?",L.T("ScreenIt will close to install the update. Your current screenshot session is stored only in memory and will be lost. Continue?")+"\n\n"+L.T("The installer is unsigned. Windows SmartScreen may show a warning."),"Install"),
-                    installer=> { if(System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(installer) { UseShellExecute=true })==null) throw new IOException("Installer did not start."); },owner.ExitForUpdate);
-            }
-            catch(Exception) { error="Could not start the installer. Your session is unchanged."; }
-            updateStatus="";
-        }
-        catch(OperationCanceledException) { return; }catch(Exception) { error="Update download or verification failed. Nothing was installed.";updateStatus=""; }
-        finally { updating=false;if(!cancellation.IsCancellationRequested) Refresh(); }
-    }
+    internal Task CheckUpdates() => updates.Check();
     private void Open(Uri uri) { try { UpdateTransfer.OpenPage(uri); }catch(Exception) { error="Could not open the page.";Refresh(); } }
     [System.Runtime.InteropServices.DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd,int attribute,ref int value,int length);
 }

@@ -52,6 +52,22 @@ internal static class L
         foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) Tree(child);
     }
     private const string Catalog="""
+{0} MB|{0} МБ
+{0} of {1}|{0} из {1}
+{0} downloaded|Скачано {0}
+Checking for updates…|Проверка обновлений…
+Downloading update — {0}%|Скачивание обновления — {0}%
+Downloading update…|Скачивание обновления…
+Verifying update…|Проверка обновления…
+Preparing installation…|Подготовка к установке…
+Launching installer…|Запуск установщика…
+Installer launched. ScreenIt is handing off the update.|Установщик запущен. ScreenIt передаёт ему обновление.
+Could not check for updates. Check your connection and retry.|Не удалось проверить обновления. Проверьте подключение и повторите попытку.
+Could not download the update. Check your connection and retry.|Не удалось скачать обновление. Проверьте подключение к интернету и повторите попытку.
+Could not verify the update. The downloaded file is damaged or does not match the expected release.|Не удалось проверить обновление. Загруженный файл повреждён или не соответствует ожидаемой версии.
+Could not start the installer. Your session is unchanged. Retry the update.|Не удалось запустить установщик. Сессия сохранена. Повторите попытку обновления.
+Could not prepare the update for installation. Nothing was installed. Retry the update.|Не удалось подготовить обновление к установке. Ничего не установлено. Повторите попытку.
+Retry|Повторить
 Annotation modifier|Клавиша разметки
 Shortcut set is invalid.|Набор сочетаний недопустим.
 {0} is not supported by ScreenIt.|Комбинация {0} не поддерживается ScreenIt.

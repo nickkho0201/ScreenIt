@@ -8,10 +8,11 @@ using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 internal sealed record UpdateRelease(Version Version,Uri Page,Uri Installer,Uri Checksums);
+internal sealed record DownloadProgress(long BytesDownloaded,long? TotalBytes);
 internal interface IUpdateSource
 {
     Task<UpdateRelease?> Check(CancellationToken token);
-    Task Download(Uri uri,string path,long maxBytes,CancellationToken token);
+    Task Download(Uri uri,string path,long maxBytes,CancellationToken token,IProgress<DownloadProgress>? progress=null);
 }
 internal sealed class GithubUpdateSource : IUpdateSource
 {
@@ -49,7 +50,7 @@ internal sealed class GithubUpdateSource : IUpdateSource
         using var response=await client.GetAsync("https://api.github.com/repos/nickkho0201/ScreenIt/releases/latest",HttpCompletionOption.ResponseHeadersRead,token);response.EnsureSuccessStatusCode();
         using var memory=new MemoryStream();await LimitedCopy(await response.Content.ReadAsStreamAsync(token),memory,1024*1024,token);return Parse(System.Text.Encoding.UTF8.GetString(memory.ToArray()));
     }
-    public async Task Download(Uri uri,string path,long maxBytes,CancellationToken token)
+    public async Task Download(Uri uri,string path,long maxBytes,CancellationToken token,IProgress<DownloadProgress>? progress=null)
     {
         if(!Allowed(uri)) throw new InvalidDataException("Unexpected download URL.");
         using var client=Client();
@@ -59,13 +60,28 @@ internal sealed class GithubUpdateSource : IUpdateSource
             if((int)response.StatusCode is >=300 and <400)
             { var location=response.Headers.Location ?? throw new InvalidDataException("Missing redirect.");uri=location.IsAbsoluteUri ? location : new Uri(uri,location);if(!Allowed(uri,true)) throw new InvalidDataException("Unexpected redirect.");continue; }
             response.EnsureSuccessStatusCode();
-            using var output=new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.None);await LimitedCopy(await response.Content.ReadAsStreamAsync(token),output,maxBytes,token);return;
+            long? length=response.Content.Headers.ContentLength;
+            if(length>maxBytes) throw new InvalidDataException("Download too large.");
+            using var output=new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.None,81920,FileOptions.Asynchronous);
+            await LimitedCopy(await response.Content.ReadAsStreamAsync(token),output,maxBytes,token,progress,length);return;
         }
         throw new InvalidDataException("Too many redirects.");
     }
-    private static async Task LimitedCopy(Stream input,Stream output,long limit,CancellationToken token)
+    internal static async Task LimitedCopy(Stream input,Stream output,long limit,CancellationToken token,IProgress<DownloadProgress>? progress=null,long? expectedLength=null)
     {
-        using(input) { byte[] buffer=new byte[81920];long total=0;int read;while((read=await input.ReadAsync(buffer,token))>0) { total+=read;if(total>limit) throw new InvalidDataException("Download too large.");await output.WriteAsync(buffer.AsMemory(0,read),token); } }
+        using(input)
+        {
+            byte[] buffer=new byte[81920];long total=0;int read;var timer=Stopwatch.StartNew();
+            progress?.Report(new(0,expectedLength));
+            while((read=await input.ReadAsync(buffer,token))>0)
+            {
+                total+=read;if(total>limit || expectedLength.HasValue && total>expectedLength.Value) throw new InvalidDataException("Download too large.");
+                await output.WriteAsync(buffer.AsMemory(0,read),token);
+                if(timer.ElapsedMilliseconds>=100) { progress?.Report(new(total,expectedLength));timer.Restart(); }
+            }
+            if(expectedLength.HasValue && total!=expectedLength.Value) throw new IOException("Incomplete download.");
+            progress?.Report(new(total,expectedLength));
+        }
     }
 }
 internal sealed class UpdateTransfer(IUpdateSource source)
@@ -78,7 +94,7 @@ internal sealed class UpdateTransfer(IUpdateSource source)
         using var stream=File.OpenRead(installer);var hash=Convert.ToHexString(await SHA256.HashDataAsync(stream,token));
         if(!hash.Equals(lines[0].Groups[1].Value,StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Checksum mismatch.");
     }
-    internal async Task<string> Prepare(UpdateRelease release,CancellationToken token)
+    internal async Task<string> Prepare(UpdateRelease release,CancellationToken token,IProgress<DownloadProgress>? progress=null,Action? verifying=null)
     {
         Directory.CreateDirectory(Root);
         for(var dir=new DirectoryInfo(Root);dir!=null;dir=dir.Parent) if((dir.Attributes & FileAttributes.ReparsePoint)!=0) throw new IOException("Reparse update storage.");
@@ -88,7 +104,7 @@ internal sealed class UpdateTransfer(IUpdateSource source)
         FileSystemAclExtensions.CreateDirectory(security,folder);
         string installer=Path.Combine(folder,$"ScreenIt-Setup-{release.Version}.exe"),sums=Path.Combine(folder,"SHA256SUMS.txt");
         File.WriteAllText(Path.Combine(folder,".screenit-update"),"ScreenIt update v1");
-        try { await source.Download(release.Checksums,sums,65536,token);await source.Download(release.Installer,installer,256L*1024*1024,token);await Verify(installer,sums,token);return installer; }
+        try { await source.Download(release.Checksums,sums,65536,token);await source.Download(release.Installer,installer,256L*1024*1024,token,progress);verifying?.Invoke();await Verify(installer,sums,token);return installer; }
         catch { foreach(var file in new[]{installer,sums,Path.Combine(folder,".screenit-update")}) if(File.Exists(file)) File.Delete(file);Directory.Delete(folder);throw; }
     }
     internal static bool Installed()

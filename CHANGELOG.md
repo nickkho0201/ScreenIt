@@ -6,6 +6,7 @@
 
 ### Added
 
+- Updater phase/progress UI: real installer download percentage/bytes when Content-Length is known, indeterminate unknown-size and verification/preparation/launch states, localized stage-specific errors and Retry. Shared renderer has a safe developer harness in Verification; no simulated production install progress.
 - Capture hotkey `Win+Shift+S`: scoped low-level interception during the assigned binding, without Windows configuration changes. Settings input recording has its own temporary hook. Ordinary hotkeys retain RegisterHotKey; installation/save failures retain previous bindings.
 - Persisted annotation hold-modifier Ctrl (default), Shift or Alt; localized Settings control and dynamic selection hint.
 - UI-only outer accent glow and highlighted annotation hint while the modifier is held; smooth fades/breathing and a static Windows animation-disabled state.

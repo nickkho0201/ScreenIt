@@ -171,13 +171,13 @@ internal static class SettingsChecks
     {
         internal int Calls;internal bool Failure;internal UpdateRelease? Result;
         public Task<UpdateRelease?> Check(CancellationToken token) { Calls++;return Failure ? Task.FromException<UpdateRelease?>(new IOException()) : Task.FromResult(Result); }
-        public Task Download(Uri uri,string path,long limit,CancellationToken token)=>throw new NotSupportedException();
+        public Task Download(Uri uri,string path,long limit,CancellationToken token,IProgress<DownloadProgress>? progress=null)=>throw new NotSupportedException();
     }
     private sealed class SyntheticDownloads : IUpdateSource
     {
         internal int Calls,Fail;
         public Task<UpdateRelease?> Check(CancellationToken token)=>Task.FromResult<UpdateRelease?>(null);
-        public Task Download(Uri uri,string path,long limit,CancellationToken token)
+        public Task Download(Uri uri,string path,long limit,CancellationToken token,IProgress<DownloadProgress>? progress=null)
         {
             Calls++;if(Fail==1) throw new IOException("Synthetic download failure");
             if(Path.GetFileName(path)=="SHA256SUMS.txt") File.WriteAllText(path,(Fail==3 ? new string('0',64) : Convert.ToHexString(SHA256.HashData(new byte[]{1,2,3,4})))+"  ScreenIt-Setup-0.1.3.exe\n");

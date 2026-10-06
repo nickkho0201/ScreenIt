@@ -94,6 +94,25 @@ Smoke временно записывает deterministic EN/dark/default или
 
 ## Manual smoke testing
 
+### Updater UI review (Unreleased)
+
+Safe deterministic harness, separate verification executable:
+
+```powershell
+.\verification\ScreenIt.Verification\bin\Release\net10.0-windows\ScreenIt.Verification.exe --update-ui-test
+```
+
+Harness не создаёт Coordinator/mutex/hotkeys, не читает/сохраняет user preferences, не использует сеть/update temp folders, не запускает installer и не закрывает пользовательский ScreenIt. Это developer path только в Verification, без production CLI/settings option. Окно показывает настоящий UpdateSection и mock IUpdateFlow states. Previous/Next дают Available, 0/25/50/75/100%, unknown-total, Verifying, PreparingInstall, LaunchingInstaller, три stage failures и InstallerLaunched. RU/EN и Light/Dark переключаются только в test process. Retry сбрасывает state к 0%; Next проходит successful handoff, без реальных system actions. InstallerLaunched не означает завершение установки.
+
+```powershell
+.\verification\ScreenIt.Verification\bin\Release\net10.0-windows\ScreenIt.Verification.exe --updates-only
+.\verification\ScreenIt.Verification\bin\Release\net10.0-windows\ScreenIt.Verification.exe --update-ui-test --snapshot
+```
+
+Первый режим выполняет updater-specific checks с fake sources/launch callbacks, настоящими private temp generations и WPF lifecycle; не запускает installer/сеть, не меняет clipboard/settings, но создаёт verification Coordinator для Settings close/hide checks. Второй показывает harness, сохраняет PNG и закрывает только test window для build/run smoke. Outputs: ignored `artifacts/updater-verification.json` и `artifacts/updater-ui/*.png`. Полный suite также включает UpdateChecks. Проверки: bytes/percent/unknown length/truncation, phase failures и Retry, double click/cancellation/partial cleanup, confirmation decline и successful handoff, shared renderer RU/EN × Light/Dark, wrapping, reduced motion, Settings hide/show/close. Full suite сохраняет общие preconditions выше.
+
+Ручная приёмка: пройти все states в четырёх locale/theme вариантах, проверить unknown-total/static reduced-motion state, long errors и Retry. В подготовленной installed test environment дополнительно проверить реальный download/progress и RAM-loss confirmation; не принимать harness как evidence GitHub/installer integration. При закрытии Settings download отменяется; при Hide/show state сохраняется. Actual installation progress API отсутствует, package/version/release менять ради этого review не нужно.
+
 ### Minimum для большинства runtime/UI изменений
 
 1. Запустить одну копию: tray доступен, startup не открывает capture/settings и не делает update check. Второй запуск не создаёт второй tray process.

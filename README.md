@@ -105,6 +105,8 @@ An installed copy can download the versioned installer and `SHA256SUMS.txt`, ver
 
 Portable copies open the release page instead of installing over themselves. Update downloads use a private generation directory under `%TEMP%/ScreenIt/Updates`; failed verification removes that generation. A verified download may remain after cancellation/installation. Installation retains the existing application identity and preferences.
 
+In the current source tree, About shows real download percentage and bytes when the server provides a size; otherwise it shows downloaded bytes and an indeterminate indicator. Verification, preparation, and installer launch have separate statuses. Failures identify the stage and offer Retry. Closing Settings cancels the operation; hiding and showing it preserves progress. ScreenIt reports installer launch, then closes after confirmation; it does not report installation completion.
+
 ## Compatibility
 
 Manually confirmed: **ChatGPT Web sequential Paste Session** and the current **Windows 11 multi-monitor, 100%/125% mixed-DPI environment**, including a negative monitor origin.
