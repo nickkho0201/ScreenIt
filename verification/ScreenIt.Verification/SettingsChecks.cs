@@ -66,18 +66,18 @@ internal static class SettingsChecks
             nativeHost.Close();
             // Semantic numeric ordering, no prereleases/downgrades, strict URL/asset identity.
             check(GithubUpdateSource.StableVersion("v0.1.10")>GithubUpdateSource.StableVersion("v0.1.2") && GithubUpdateSource.StableVersion("v0.1.2-beta")==null,"Numeric stable semantic version comparison");
-            foreach(var v in new[]{"0.1.0","0.1.1","0.1.2"}) check(GithubUpdateSource.Parse(Release(v))==null,"No downgrade or same-version update "+v);
-            check(GithubUpdateSource.Parse(Release("0.1.3",draft:true))==null && GithubUpdateSource.Parse(Release("0.1.3",pre:true))==null,"Draft/prerelease excluded");
-            foreach(var malformed in new[]{"{}",Release("bad"),Release("0.1.3").Replace("SHA256SUMS.txt","missing.txt"),Release("0.1.3").Replace("https://github.com","http://github.com")})
+            foreach(var v in new[]{"0.1.0","0.1.1","0.1.2","0.2.0"}) check(GithubUpdateSource.Parse(Release(v))==null,"No downgrade or same-version update "+v);
+            check(GithubUpdateSource.Parse(Release("0.2.1",draft:true))==null && GithubUpdateSource.Parse(Release("0.2.1",pre:true))==null,"Draft/prerelease excluded");
+            foreach(var malformed in new[]{"{}",Release("bad"),Release("0.2.1").Replace("SHA256SUMS.txt","missing.txt"),Release("0.2.1").Replace("https://github.com","http://github.com")})
             { bool failed=false;try { GithubUpdateSource.Parse(malformed); }catch(Exception) { failed=true; }check(failed,"Malformed/missing/untrusted release rejected"); }
             check(!GithubUpdateSource.Allowed(new Uri("https://evil.example/a"),true) && GithubUpdateSource.Allowed(new Uri("https://release-assets.githubusercontent.com/a"),true),"Download redirect allowlist");
-            var release=GithubUpdateSource.Parse(Release("0.1.3"))!;check(release.Version==new Version(0,1,3),"New stable release recognized");
+            var release=GithubUpdateSource.Parse(Release("0.2.1"))!;check(release.Version==new Version(0,2,1),"New stable release recognized");
             var downloads=new SyntheticDownloads();string prepared=await new UpdateTransfer(downloads).Prepare(release,CancellationToken.None);
-            check(File.Exists(prepared) && downloads.Calls==2 && Path.GetFileName(prepared)=="ScreenIt-Setup-0.1.3.exe","Synthetic updater prepares both assets and verifies hash without executing");
+            check(File.Exists(prepared) && downloads.Calls==2 && Path.GetFileName(prepared)=="ScreenIt-Setup-0.2.1.exe","Synthetic updater prepares both assets and verifies hash without executing");
             string generation=Path.GetDirectoryName(prepared)!;foreach(var f in Directory.GetFiles(generation)) File.Delete(f);Directory.Delete(generation);
             foreach(var failure in new[]{1,2,3})
             { downloads.Fail=failure;bool rejected=false;try { await new UpdateTransfer(downloads).Prepare(release,CancellationToken.None); }catch(Exception) { rejected=true; }check(rejected,"Failed download/hash never yields launchable updater result "+failure); }
-            var fake=new FakeUpdates();string installer=Path.Combine(folder,"ScreenIt-Setup-0.1.3.exe"),sums=Path.Combine(folder,"SHA256SUMS.txt");File.WriteAllBytes(installer,[1,2,3,4]);string hash=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(installer)));
+            var fake=new FakeUpdates();string installer=Path.Combine(folder,"ScreenIt-Setup-0.2.1.exe"),sums=Path.Combine(folder,"SHA256SUMS.txt");File.WriteAllBytes(installer,[1,2,3,4]);string hash=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(installer)));
             File.WriteAllText(sums,hash+"  "+Path.GetFileName(installer)+"\n");await UpdateTransfer.Verify(installer,sums);check(true,"Exact installer SHA256 verified");
             foreach(var text in new[]{"",new string('0',64)+"  "+Path.GetFileName(installer),hash+"  "+Path.GetFileName(installer)+"\n"+hash+"  "+Path.GetFileName(installer)})
             { File.WriteAllText(sums,text);bool failed=false;try { await UpdateTransfer.Verify(installer,sums); }catch(InvalidDataException) { failed=true; }check(failed,"Missing/bad/ambiguous SHA256 rejects installer"); }
@@ -180,7 +180,7 @@ internal static class SettingsChecks
         public Task Download(Uri uri,string path,long limit,CancellationToken token,IProgress<DownloadProgress>? progress=null)
         {
             Calls++;if(Fail==1) throw new IOException("Synthetic download failure");
-            if(Path.GetFileName(path)=="SHA256SUMS.txt") File.WriteAllText(path,(Fail==3 ? new string('0',64) : Convert.ToHexString(SHA256.HashData(new byte[]{1,2,3,4})))+"  ScreenIt-Setup-0.1.3.exe\n");
+            if(Path.GetFileName(path)=="SHA256SUMS.txt") File.WriteAllText(path,(Fail==3 ? new string('0',64) : Convert.ToHexString(SHA256.HashData(new byte[]{1,2,3,4})))+"  ScreenIt-Setup-0.2.1.exe\n");
             else { if(Fail==2) throw new IOException("Synthetic installer download failure");File.WriteAllBytes(path,[1,2,3,4]); }
             return Task.CompletedTask;
         }

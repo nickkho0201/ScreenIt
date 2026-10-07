@@ -11,7 +11,7 @@ using System.Windows.Media.Imaging;
 // update storage, installer process, single-instance mutex or runtime hotkeys.
 internal sealed class UpdateUiHarness : IUpdateFlow
 {
-    internal static readonly UpdateRelease Release=new(new Version(0,1,3),new Uri("https://example.invalid/release"),new Uri("https://example.invalid/installer"),new Uri("https://example.invalid/checksum"));
+    internal static readonly UpdateRelease Release=new(new Version(0,2,1),new Uri("https://example.invalid/release"),new Uri("https://example.invalid/installer"),new Uri("https://example.invalid/checksum"));
     internal static readonly UpdateState[] Scenarios=
     [
         new(UpdatePhase.Available,Release),

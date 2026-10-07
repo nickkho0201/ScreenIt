@@ -1,3 +1,25 @@
+## ScreenIt 0.2.0 — 2026-10-07
+
+### Faster capture
+
+- Release a region selection or press Space to add the screenshot immediately to your session.
+- Hold Ctrl (configurable to Shift or Alt) to annotate instead. An accent glow and active hint show when annotation is selected.
+- Improved shortcut recording and clear conflict messages. Capture can use Win+Shift+S, replacing Snipping Tool only while ScreenIt runs with that binding.
+
+### Window capture
+
+- Press W to switch between Region and Window selection. Hover highlights the target; click captures it, or hold the annotation modifier to edit.
+- Captures the selected window through Windows.Graphics.Capture, excluding overlapping windows and ScreenIt highlights. Large and cross-monitor windows retain their full screenshot resolution.
+
+### Clearer updates
+
+- Real download percentage and downloaded/total size, with an indeterminate indicator when the total is unknown.
+- Separate verification, preparation and installer-launch statuses; stage-specific errors and Retry. Installation progress is not simulated.
+
+Download **ScreenIt-Setup-0.2.0.exe** or **ScreenIt-0.2.0-win-x64-portable.zip**. Both are self-contained for Windows 11 x64; **SHA256SUMS.txt** contains their checksums. Upgrade from 0.1.2 keeps the installation identity and preferences. Sessions remain RAM-only; installer/executable remain unsigned.
+
+Protected content, HDR/exclusive fullscreen and unusual transparent surfaces may be unavailable or render differently. Independent popup windows are not merged into the selected window.
+
 ## ScreenIt 0.1.2 — 2026-10-05
 
 - A short notification confirms that ScreenIt is ready to run in the background.

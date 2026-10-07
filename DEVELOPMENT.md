@@ -1,6 +1,6 @@
 # Development
 
-Практический workflow текущего ScreenIt `0.1.2`. Начните с [README](README.md) и [AGENTS](AGENTS.md); runtime flow и ограничения описаны в [ARCHITECTURE](ARCHITECTURE.md), история — в [CHANGELOG](CHANGELOG.md).
+Практический workflow текущего ScreenIt `0.2.0`. Начните с [README](README.md) и [AGENTS](AGENTS.md); runtime flow и ограничения описаны в [ARCHITECTURE](ARCHITECTURE.md), история — в [CHANGELOG](CHANGELOG.md).
 
 ## Environment
 
@@ -80,7 +80,7 @@ dotnet run --project src/ScreenIt.App/ScreenIt.App.csproj -c Release --no-build
 
 `Smoke.ps1` проверяет production startup/background HWND, занятость hotkeys, single instance, empty paste/clear без clipboard mutation, WM_HOTKEY route, full-monitor commit, реальные Clear buttons и clean shutdown/released keys. Он посылает Win32 messages и использует UIAutomation, поэтому не подтверждает physical key delivery во всех environments и не автоматизирует third-party receiver.
 
-Smoke временно записывает deterministic EN/dark/default или Ctrl+Shift+Q/W/E configuration, затем восстанавливает исходные settings bytes в finally; при failure может Kill только запущенный им process. Это тестовый cleanup, не product shutdown policy. Pointer smoke аналогично меняет user settings, двигает cursor и проверяет pixel differences normal/hover/pressed; default executable path у него — локальный `artifacts/settings-polish/publish`, поэтому выше путь задан явно. Отчёт/PNG — `artifacts/settings-polish/`.
+Smoke временно записывает deterministic EN/dark/default или Ctrl+Shift+Q/W/E configuration, затем восстанавливает исходные settings bytes в finally; при failure может Kill только запущенный им process. Это тестовый cleanup, не product shutdown policy. Mandatory Settings visual gate: `ScreenIt.Verification.exe --settings-visual-only` (также входит в full suite). Он создаёт скрытый production Settings UI, использует реальные templates/resources и проверяет RU/EN, Light/Dark, layout и отрисованные normal/hover/pressed states; read-only WPF input state задаётся только verification reflection, без tray/foreground/cursor. Отчёт — `artifacts/settings-visual-verification.json`. Interactive SettingsHoverSmoke отдельно меняет user settings, двигает cursor и проверяет pixel differences normal/hover/pressed. Outcomes: PASS, FAIL, INCONCLUSIVE (external desktop input/foreground interference); последний не доказывает regression и не закрывает deterministic gate. Повтор допустим только для явно INCONCLUSIVE, FAIL требует расследования. Наблюдатель пропускает весь input, не использует BlockInput; собственные mouse events помечены, injected reserved VK 0xB9 учитывается отдельно только во время own tray transition. `-InjectInterferenceForVerification` посылает один немаркированный mouse move для проверки INCONCLUSIVE. Default executable — локальный `artifacts/settings-polish/publish`; путь задавать явно. PNG, crops, pointer/key/foreground evidence и report — `artifacts/settings-layout/`, либо `-EvidenceDirectory <path>`.
 
 Только при отдельной необходимости и с пониманием нестабильности внешнего состояния:
 
@@ -88,13 +88,13 @@ Smoke временно записывает deterministic EN/dark/default или
 .\verification\ScreenIt.Verification\bin\Release\net10.0-windows\ScreenIt.Verification.exe --check-updates
 ```
 
-Этот flag делает live GitHub request и **ожидает отсутствие версии новее 0.1.2**. После следующего релиза такой assertion может упасть при корректном updater. Default suite сеть updater не использует.
+Этот flag делает live GitHub request и **ожидает отсутствие версии новее 0.2.0**. После следующего релиза такой assertion может упасть при корректном updater. Default suite сеть updater не использует.
 
 Не покрыты автоматикой: принятие attachments/text реальным receiver, rollback данных получателя, SmartScreen/обычный setup UX, все physical DPI/HDR/protected-content configs, все lock/sleep/disconnect transitions, OS crash/termination и безопасное завершение всех async races. Manual acceptance обязательна для затронутого flow.
 
 ## Manual smoke testing
 
-### Window capture (Unreleased)
+### Window capture (0.2.0)
 
 Release App: обычный Capture → W → hover/click. W возвращает Region; Space всегда full focused monitor, configured modifier при click/Space открывает Annotation. Window pixels берутся при click через WGC, Region/monitor остаются frozen. Вручную проверить Explorer/browser/IDE, частично перекрытое окно (click по exposed части), Settings PID exclusion, maximized/borderless/accelerated surfaces, current mixed DPI/negative origin и cross-monitor target, A/B/C → Paste. Не обещать protected/HDR/exclusive-fullscreen compatibility без evidence; WGC-defined chrome/rounded corners и системный capture indicator зависят от Windows.
 
@@ -104,7 +104,9 @@ Release App: обычный Capture → W → hover/click. W возвращае�
 
 WindowCaptureChecks входят также в полный suite. Native fixture — отдельный verification process с WPF target/foreground occluder; no production settings/network/installer. Проверки реально используют CreateForWindow/D3D readback, pixel comparison, 20 capture cycles/handle bounds, full Session integration, own PID filtering, Region/Window keyboard lifecycle, Space, actual monitor DPI/origin и cross-monitor source. Fixture завершается через WM_CLOSE; аварийный cleanup Kill ограничен собственным fixture process. Outputs — ignored `artifacts/window-verification.json` и `artifacts/window-capture/*.png`, в том числе RU/EN Light/Dark hints. Native ABI требует x64 (existing platform); build использует AllowUnsafeBlocks только App, без новых packages или version/release изменений. Standard suite/smoke preconditions сохраняются.
 
-### Updater UI review (Unreleased)
+При отсутствии overlays assertion сохраняет expanded before/after evidence в `artifacts/window-capture/overlay-transition.json` и verification report: guards, accepted capture generation, исходный exception, owned windows, monitor/draft/session state. Collection/reflection/serialization выполняются только Verification; production держит пассивный счётчик и последнее capture exception. Один исторический full-suite отказ создания overlays не воспроизведён повторными Window/full прогонами; его причина не установлена и не считается исправленной.
+
+### Updater UI review (0.2.0)
 
 Safe deterministic harness, separate verification executable:
 
@@ -134,7 +136,7 @@ Harness не создаёт Coordinator/mutex/hotkeys, не читает/сох�
 
 Для docs-only change GUI smoke не обязателен, если команды/контракты проверены по источникам и не утверждается новый PASS.
 
-### Unreleased Capture UX / reserved shortcut acceptance
+### Capture UX / reserved shortcut acceptance
 
 Полный suite включает CaptureUxChecks: filtering/repeat/injected cases, installation/save failure rollback, native install/rebind/dispose cycles, старые settings и restart persistence, все Ctrl/Shift/Alt drop/Space варианты, RGB comparison обоих output paths с frozen crop. Existing annotation stress намеренно удерживает modifier. Эти checks не доказывают физическое подавление Snipping Tool; синтетический SendInput помечен injected и намеренно пропускается hook.
 
@@ -182,8 +184,8 @@ Builder выполняет `dotnet publish src/ScreenIt.App/ScreenIt.App.csproj 
 | Artifact | Содержимое |
 |---|---|
 | `artifacts/release/publish/` | App EXE/DLL, Core DLL, deps/runtimeconfig, .NET/Windows Desktop native/managed runtime files, LICENSE и `licenses/`. ICO embedded в App; отдельный assets directory не требуется. |
-| `ScreenIt-Setup-0.1.2.exe` | Per-user Inno installer всего publish tree. |
-| `ScreenIt-0.1.2-win-x64-portable.zip` | Всё содержимое publish без дополнительного enclosing directory. |
+| `ScreenIt-Setup-0.2.0.exe` | Per-user Inno installer всего publish tree. |
+| `ScreenIt-0.2.0-win-x64-portable.zip` | Всё содержимое publish без дополнительного enclosing directory. |
 | `SHA256SUMS.txt` | SHA-256 installer и ZIP с exact versioned names, lowercase hash. |
 
 Не ship source, spikes, verification, screenshots/evidence, settings или PDB. Inno включает всё из publish recursively: чистота publish directory обязательна. Byte-for-byte reproducibility архивов/metadata не гарантируется.
@@ -201,13 +203,13 @@ Builder выполняет `dotnet publish src/ScreenIt.App/ScreenIt.App.csproj 
 
 Сохранять AppId, mutex, per-user path и settings location. Установка/удаление не должны трогать `%LOCALAPPDATA%\ScreenIt` и clipboard temp. Installer AppMutex блокирует работающую копию; автоматического Kill/restart нет.
 
-Для **закрытой установленной 0.1.1** и сохранённого baseline:
+Для **закрытой установленной 0.1.2** и сохранённого baseline:
 
 ```powershell
-.\installer\Verify-Upgrade.ps1 -BaselineDirectory 'C:\path\to\retained-0.1.1-baseline'
+.\installer\Verify-Upgrade.ps1 -BaselineDirectory 'C:\path\to\retained-0.1.2-baseline'
 ```
 
-Baseline должен содержать `publish/`, `ScreenIt-Setup-0.1.1.exe` и SHA256SUMS; новая `0.1.2` — в `artifacts/release/`. Default baseline path — `artifacts/release-0.1.1-preserved`. Скрипт проверяет три ключевых installed binary hashes, reapplies baseline installer, затем upgrade installer с проверкой checksums, identity/path/version, preferences hashes, единственного uninstall entry, publish files и upgraded smoke. **Оставляет 0.1.2 установленной**, не удаляет existing installation. Проверка baseline ограничена указанными binaries, не всеми файлами old installation.
+Baseline должен содержать `publish/`, `ScreenIt-Setup-0.1.2.exe` и SHA256SUMS; новая `0.2.0` — в `artifacts/release/`. Default baseline path — `artifacts/release-0.1.2-preserved`. Скрипт проверяет три ключевых installed binary hashes, reapplies baseline installer, затем upgrade installer с проверкой checksums, identity/path/version, preferences hashes, единственного uninstall entry, publish files и upgraded smoke. **Оставляет 0.2.0 установленной**, не удаляет existing installation. Проверка baseline ограничена указанными binaries, не всеми файлами old installation.
 
 Дополнительная ручная проверка в disposable environment:
 

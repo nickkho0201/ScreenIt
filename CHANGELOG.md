@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-07
+
 ### Added
 
 - Window capture selection via W: native Windows.Graphics.Capture HWND source, z-order hover tint/border, PID/visibility/cloaking/tool/shell filtering, Quick Capture or modifier-to-Annotation through the existing session pipeline. Whole physical source is retained across monitors; enlarged sources fit the same annotation overlay. Native occlusion/resource checks and localized Region/Window hints are included; no desktop crop or PrintWindow fallback.
@@ -78,6 +80,7 @@
 
 В `0.1.0` runtime updater и runtime networking отсутствовали. Поддержка capture окна, persistent sessions и пользовательский Save As не реализованы ни в этом теге, ни в `0.1.1`.
 
+[0.2.0]: https://github.com/nickkho0201/ScreenIt/tree/v0.2.0
 [0.1.2]: https://github.com/nickkho0201/ScreenIt/tree/v0.1.2
 [0.1.1]: https://github.com/nickkho0201/ScreenIt/tree/v0.1.1
 [0.1.0]: https://github.com/nickkho0201/ScreenIt/tree/v0.1.0

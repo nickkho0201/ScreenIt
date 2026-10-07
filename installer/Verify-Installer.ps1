@@ -12,7 +12,7 @@ $settingsBefore = if(Test-Path -LiteralPath $settings) { (Get-FileHash -LiteralP
 $checks = [Collections.Generic.List[string]]::new()
 $installed = $false
 try {
-    $process = Start-Process -FilePath (Join-Path $release 'ScreenIt-Setup-0.1.2.exe') -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/LOG="'+(Join-Path $root 'artifacts/install.log')+'"')) -WindowStyle Hidden -Wait -PassThru
+    $process = Start-Process -FilePath (Join-Path $release 'ScreenIt-Setup-0.2.0.exe') -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/LOG="'+(Join-Path $root 'artifacts/install.log')+'"')) -WindowStyle Hidden -Wait -PassThru
     if($process.ExitCode -ne 0) { throw "Install failed: $($process.ExitCode)" }
     $installed = $true
     $checks.Add('Actual per-user silent installer exits 0')
@@ -23,7 +23,7 @@ try {
     }
     $checks.Add('Every installed application file byte-equivalent to publish output')
     $record = Get-ItemProperty -LiteralPath $entry
-    if($record.DisplayVersion -ne '0.1.2' -or $record.InstallLocation.TrimEnd('\') -ne $target) { throw 'Unexpected per-user uninstall metadata.' }
+    if($record.DisplayVersion -ne '0.2.0' -or $record.InstallLocation.TrimEnd('\') -ne $target) { throw 'Unexpected per-user uninstall metadata.' }
     $checks.Add('HKCU uninstall entry/version/install path correct')
     $shell = New-Object -ComObject WScript.Shell
     $link = $shell.CreateShortcut($shortcut)

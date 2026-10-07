@@ -145,7 +145,7 @@ internal static class UpdateChecks
         public async Task Download(Uri uri,string path,long maxBytes,CancellationToken token,IProgress<DownloadProgress>? progress=null)
         {
             Folders.Add(Path.GetDirectoryName(path)!);token.ThrowIfCancellationRequested();
-            if(Path.GetFileName(path)=="SHA256SUMS.txt") { await File.WriteAllTextAsync(path,(Failure==UpdateError.Verification ? new string('0',64) : Convert.ToHexString(SHA256.HashData(new byte[]{1,2,3,4})))+"  ScreenIt-Setup-0.1.3.exe",token);return; }
+            if(Path.GetFileName(path)=="SHA256SUMS.txt") { await File.WriteAllTextAsync(path,(Failure==UpdateError.Verification ? new string('0',64) : Convert.ToHexString(SHA256.HashData(new byte[]{1,2,3,4})))+"  ScreenIt-Setup-0.2.1.exe",token);return; }
             InstallerCalls++;await File.WriteAllBytesAsync(path,new byte[]{1,2},token);progress?.Report(new(0,4));Entered.TrySetResult();
             if(Wait) await Task.Delay(Timeout.Infinite,token);
             if(Failure==UpdateError.Download) throw new IOException("test connection closed");
@@ -153,7 +153,7 @@ internal static class UpdateChecks
         }
         public void Dispose()
         {
-            foreach(string folder in Folders) if(Directory.Exists(folder)) { foreach(string name in new[]{"ScreenIt-Setup-0.1.3.exe","SHA256SUMS.txt",".screenit-update"}) { string file=Path.Combine(folder,name);if(File.Exists(file)) File.Delete(file); }Directory.Delete(folder); }
+            foreach(string folder in Folders) if(Directory.Exists(folder)) { foreach(string name in new[]{"ScreenIt-Setup-0.2.1.exe","SHA256SUMS.txt",".screenit-update"}) { string file=Path.Combine(folder,name);if(File.Exists(file)) File.Delete(file); }Directory.Delete(folder); }
         }
     }
     private static IEnumerable<T> Find<T>(DependencyObject root) where T:DependencyObject

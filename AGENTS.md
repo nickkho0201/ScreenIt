@@ -26,9 +26,9 @@ Spikes — архив исследований, не текущая implementati
 - Clear/Discard/Exit с потерей данных используют существующие safe confirmations. Отмена сохраняет соответствующее retained состояние.
 - Совместимость обещать в пределах evidence; задержка между pastes не является acknowledgement принимающего приложения.
 
-## Current capability state (0.1.2)
+## Current capability state (0.2.0)
 
-Текущие capture modes — region одного монитора и full focused-monitor через Space. Window capture, cross-monitor region, Save As, autostart и повторное редактирование committed снимков пока не реализованы. Feedback сейчас без звука; updater не делает автоматический restart/rollback. Это факты версии 0.1.2, а не запреты на будущие специально спроектированные функции.
+Текущие capture modes — region одного монитора, window через W и full focused-monitor через Space. Завершение по умолчанию делает quick commit; удерживаемый настроенный modifier открывает Annotation. Cross-monitor region, Save As, autostart и повторное редактирование committed снимков пока не реализованы. Feedback без звука; updater не делает автоматический restart/rollback. Это факты версии 0.2.0, а не запреты на будущие специально спроектированные функции.
 
 ## Stable behavioral contract
 
@@ -64,7 +64,7 @@ Spikes — архив исследований, не текущая implementati
 - UI/coordinator state и mutable WPF objects остаются на STA dispatcher. Worker получает detached/frozen pixels, не UI ownership.
 - Physical pixels — canonical geometry; actual per-HWND transforms обязательны, global virtual-desktop scale недопустим.
 - После успешного commit или завершённого cancel не остаются temporary overlays, mouse capture, hooks или Active draft. Suspended flow ещё не завершён: retained state должен быть явно cancelled.
-- Acquisition предшествует overlays; crop/output не включает ScreenIt selection/editor chrome. Comment body никогда не попадает в Painter glyphs/raster.
+- Region/full-monitor acquisition предшествует overlays; Window получает текущий WGC frame выбранного HWND при click. Output не включает ScreenIt selection/editor chrome. Comment body никогда не попадает в Painter glyphs/raster.
 - Session committed GUID и Rasters соответствуют друг другу; Clear очищает обе коллекции, renderer/preparation failure не должен предлагать удалить session как «восстановление».
 - Paste допускает один run, guards проверяются на async/delivery boundaries; receiver HWND/PID не активируется/угадывается. Sent count означает отправленный input, не подтверждённое содержимое receiver.
 - HDC/HBITMAP/HGLOBAL ownership и cleanup сохраняются при exceptions. SetClipboardData success передаёт handle Windows; double free недопустим.

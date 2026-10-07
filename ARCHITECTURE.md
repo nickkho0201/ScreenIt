@@ -1,10 +1,10 @@
 # Architecture
 
-Архитектура исходников `0.1.2` с Unreleased UX changes от 2026-10-06. Release version не изменена. Публичное использование — в [README](README.md), команды и проверки — в [DEVELOPMENT](DEVELOPMENT.md), правила изменений — в [AGENTS](AGENTS.md).
+Архитектура исходников `0.2.0` от 2026-10-07. Публичное использование — в [README](README.md), команды и проверки — в [DEVELOPMENT](DEVELOPMENT.md), правила изменений — в [AGENTS](AGENTS.md).
 
 ## System overview
 
-ScreenIt — Windows tray utility для накопления снимков с аннотациями и передачи их в выбранное приложение. Основного постоянно открытого окна нет. Сессия и изображения находятся в RAM; сеть используется только по явным командам updater. Нет backend, account, telemetry, persistent history или пользовательского Save As. Текущие исходники включают Unreleased Window capture.
+ScreenIt — Windows tray utility для накопления снимков с аннотациями и передачи их в выбранное приложение. Основного постоянно открытого окна нет. Сессия и изображения находятся в RAM; сеть используется только по явным командам updater. Нет backend, account, telemetry, persistent history или пользовательского Save As. Текущие исходники включают Window capture.
 
 ```text
 WM_HOTKEY / reserved shortcut message / tray Capture / tray double-click
@@ -206,10 +206,10 @@ Capture catch закрывает overlays и сообщает safe error; commit
 ## Known limitations and evidence boundaries
 
 - RAM-only sessions без cap/history/crash recovery; original+annotated rasters и draft snapshot stacks увеличивают memory usage. Committed снимки нельзя reopen.
-- Нет cross-monitor region, persistent Save As, startup integration, cross-platform backend и receiver acknowledgement. Window capture в Unreleased использует WGC; real WPF occlusion/DPI/resource checks не доказывают совместимость всех browsers/accelerated/protected/HDR surfaces.
+- Нет cross-monitor region, persistent Save As, startup integration, cross-platform backend и receiver acknowledgement. Window capture использует WGC; real WPF occlusion/DPI/resource checks не доказывают совместимость всех browsers/accelerated/protected/HDR surfaces.
 - Нет awaited capture/preparation shutdown и универсального transaction rollback для clipboard, session/raster commit или settings.
 - README сообщает manual PASS для ChatGPT Web sequential paste и текущей 100%/125% mixed-DPI topology с negative origin. Физические 150%/200%, portrait, HDR/protected content и system transitions полностью не подтверждены.
 - Архивный [clipboard RESULTS](spikes/clipboard-transfer/RESULTS.md) в заключительном production note ещё помечает Web acceptance OPEN/NOT TESTED, тогда как текущий README сообщает PASS. Это расхождение evidence chronology; точные receiver versions и обновлённая tracked acceptance matrix отсутствуют. Не расширять совместимость на все приложения.
 - [installer RELEASE-NOTES](installer/RELEASE-NOTES.md) содержит notes текущей версии и историю. Локальные ignored artifacts могут содержать дополнительные прошлые отчёты, но не составляют воспроизводимую tracked test history.
-- В manifest assemblyIdentity ещё `0.1.0.0`; App csproj/updater version — `0.1.2.0`/`0.1.2`. Это разные поля; release version берётся из assembly, не manifest.
+- В manifest assemblyIdentity ещё `0.1.0.0`; App csproj/updater version — `0.2.0.0`/`0.2.0`. Это разные поля; release version берётся из assembly, не manifest.
 - Installer/app unsigned; checksum и ACL не заменяют publisher signature. CI/CD workflows в tracked repository отсутствуют.

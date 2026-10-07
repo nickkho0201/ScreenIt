@@ -11,8 +11,8 @@ Optional `-Dotnet` selects a particular SDK executable. `global.json` permits st
 Output under ignored `artifacts/release/`:
 
 - `publish/`: win-x64 Release self-contained application, ScreenIt MIT license and bundled runtime notices.
-- `ScreenIt-Setup-0.1.2.exe`
-- `ScreenIt-0.1.2-win-x64-portable.zip`
+- `ScreenIt-Setup-0.2.0.exe`
+- `ScreenIt-0.2.0-win-x64-portable.zip`
 - `SHA256SUMS.txt`
 
 The script refuses existing output to avoid stale files. Move the previous owned `artifacts/release` directory aside before rebuilding. The procedure is reproducible; archive timestamps/compiler metadata are not promised to be byte-for-byte identical across builds.
@@ -32,4 +32,4 @@ Installer verification requires a fresh target directory and no pre-existing Scr
 
 Upgrade keeps the same AppId and per-user location. `AppMutex=Local\ScreenIt.MVP` prevents setup/uninstall from replacing a running utility; ScreenIt launches setup after confirmation and then exits gracefully. No automatic process termination or preference deletion is configured.
 
-For a closed, installed 0.1.1 whose application binaries match the retained official baseline, `Verify-Upgrade.ps1 -BaselineDirectory <baseline-folder>` reapplies that baseline and upgrades in place to the newly built 0.1.2. It verifies the same AppId/path, exactly one uninstall entry, unchanged preferences, published file hashes, and installed-app smoke. It leaves the upgraded application installed and does not uninstall an existing user copy. The baseline folder must contain the installer, checksums and original publish directory.
+For a closed, installed 0.1.2 whose application binaries match the retained official baseline, `Verify-Upgrade.ps1 -BaselineDirectory <baseline-folder>` reapplies that baseline and upgrades in place to the newly built 0.2.0. It verifies the same AppId/path, exactly one uninstall entry, unchanged preferences, published file hashes, and installed-app smoke. It leaves the upgraded application installed and does not uninstall an existing user copy. The baseline folder must contain the installer, checksums and original publish directory.
