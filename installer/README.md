@@ -11,15 +11,15 @@ Optional `-Dotnet` selects a particular SDK executable. `global.json` permits st
 Output under ignored `artifacts/release/`:
 
 - `publish/`: win-x64 Release self-contained application, ScreenIt MIT license and bundled runtime notices.
-- `ScreenIt-Setup-0.2.0.exe`
-- `ScreenIt-0.2.0-win-x64-portable.zip`
+- `ScreenIt-Setup-0.2.1.exe`
+- `ScreenIt-0.2.1-win-x64-portable.zip`
 - `SHA256SUMS.txt`
 
 The script refuses existing output to avoid stale files. Move the previous owned `artifacts/release` directory aside before rebuilding. The procedure is reproducible; archive timestamps/compiler metadata are not promised to be byte-for-byte identical across builds.
 
 Single-file publishing and trimming are intentionally disabled. Installer/ZIP already package the runtime files together; there is no need to add extraction behavior or change WPF/resource loading. No PDBs, tests, spikes, evidence, or source are shipped. License/notice files are the necessary non-runtime packaging exception.
 
-The English installer targets Windows 11 x64, installs per-user under `%LOCALAPPDATA%/Programs/ScreenIt`, creates a Start Menu shortcut and uninstall entry. No desktop shortcut or autostart. Launch on the final page is optional and unchecked. Uninstall preserves `%LOCALAPPDATA%/ScreenIt` preferences and clipboard temporary generations.
+The English installer targets Windows 11 x64, installs per-user under `%LOCALAPPDATA%/Programs/ScreenIt`, creates a Start Menu shortcut and uninstall entry. No desktop shortcut; the optional per-user autostart entry is created only from Settings and is off by default. Launch on the final page is optional and unchecked. Uninstall removes the installation's own `Run` entry (and its matching `StartupApproved` value) only when the stored path matches this install, preserves `%LOCALAPPDATA%/ScreenIt` preferences and clipboard temporary generations, and never removes a portable copy's entry.
 
 Verification (close ScreenIt first):
 
@@ -32,4 +32,4 @@ Installer verification requires a fresh target directory and no pre-existing Scr
 
 Upgrade keeps the same AppId and per-user location. `AppMutex=Local\ScreenIt.MVP` prevents setup/uninstall from replacing a running utility; ScreenIt launches setup after confirmation and then exits gracefully. No automatic process termination or preference deletion is configured.
 
-For a closed, installed 0.1.2 whose application binaries match the retained official baseline, `Verify-Upgrade.ps1 -BaselineDirectory <baseline-folder>` reapplies that baseline and upgrades in place to the newly built 0.2.0. It verifies the same AppId/path, exactly one uninstall entry, unchanged preferences, published file hashes, and installed-app smoke. It leaves the upgraded application installed and does not uninstall an existing user copy. The baseline folder must contain the installer, checksums and original publish directory.
+For a closed, installed 0.1.2 whose application binaries match the retained official baseline, `Verify-Upgrade.ps1 -BaselineDirectory <baseline-folder>` reapplies that baseline and upgrades in place to the newly built 0.2.1. It verifies the same AppId/path, exactly one uninstall entry, unchanged preferences, published file hashes, and installed-app smoke. It leaves the upgraded application installed and does not uninstall an existing user copy. The baseline folder must contain the installer, checksums and original publish directory.

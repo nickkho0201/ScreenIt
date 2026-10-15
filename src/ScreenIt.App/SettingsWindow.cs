@@ -1,9 +1,10 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Automation;
 
 internal sealed class SettingsWindow : Window
 {
@@ -114,6 +115,90 @@ internal sealed class SettingsWindow : Window
         combo.SelectionChanged+=(_,_)=> { if(combo.SelectedItem is ComboBoxItem item && item.Tag is { } value) changed(value); };
         return combo;
     }
+    private static string? StartupNote(AutoStartStatus status) => status switch
+    {
+        { ExternallyDisabled: true } => L.T("Windows is currently blocking this startup entry. Enable it in Windows startup apps."),
+        { ApprovalUnknown: true } => L.T("Windows manages this startup entry; ScreenIt cannot confirm its state."),
+        { Registration: AutoStartRegistration.Unreadable } => L.T("The Windows startup setting could not be read."),
+        _ => null
+    };
+    // ScreenIt-styled toggle: a real ToggleButton whose checked state only reflects AutoStartStatus.
+    // The template keeps the whole 48x28 surface hit-testable and animates nothing, so no reduced-motion state applies.
+    private static ToggleButton Switch(bool on,bool enabled,Action<bool> changed)
+    {
+        bool dark=Appearance.Current==UiTheme.Dark;
+        var toggle=new ToggleButton { IsChecked=on,IsEnabled=enabled,Width=48,Height=28,Cursor=Cursors.Hand,Focusable=true,
+            HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Center,Background=Brushes.Transparent,
+            BorderThickness=new Thickness(0),FocusVisualStyle=null };
+        AutomationProperties.SetName(toggle,L.T("Start with Windows"));
+        AutomationProperties.SetHelpText(toggle,L.T("Launch ScreenIt automatically when you sign in."));
+        toggle.Resources["SwitchOff"]=dark ? UtilityUi.Brush(71,85,105) : UtilityUi.Brush(148,163,184);
+        toggle.Resources["SwitchOffHover"]=dark ? UtilityUi.Brush(88,102,122) : UtilityUi.Brush(134,150,171);
+        toggle.Resources["SwitchOffPressed"]=dark ? UtilityUi.Brush(58,70,86) : UtilityUi.Brush(120,137,159);
+        toggle.Resources["SwitchOn"]=UtilityUi.Accent;
+        toggle.Resources["SwitchOnHover"]=UtilityUi.Brush(84,104,216);
+        toggle.Resources["SwitchOnPressed"]=UtilityUi.Brush(52,68,166);
+        toggle.Resources["SwitchBorder"]=dark ? UtilityUi.Brush(59,71,87) : UtilityUi.Brush(203,213,225);
+        toggle.Resources["SwitchThumb"]=UtilityUi.Brush(255,255,255);
+        toggle.Resources["SwitchAccent"]=UtilityUi.Accent;
+        toggle.Template=(ControlTemplate)System.Windows.Markup.XamlReader.Parse("""
+            <ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="ToggleButton">
+              <Grid Width="48" Height="28">
+                <Border x:Name="SwitchFocus" CornerRadius="14" BorderThickness="2" BorderBrush="Transparent" Background="Transparent"/>
+                <Border x:Name="SwitchTrack" Width="40" Height="22" CornerRadius="11" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource SwitchOff}" BorderBrush="{DynamicResource SwitchBorder}" BorderThickness="1">
+                  <Border x:Name="SwitchThumb" Width="16" Height="16" CornerRadius="8" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{DynamicResource SwitchThumb}" Margin="3,0,0,0" IsHitTestVisible="False">
+                    <Border.RenderTransform><TranslateTransform X="0"/></Border.RenderTransform>
+                  </Border>
+                </Border>
+              </Grid>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                  <Setter TargetName="SwitchTrack" Property="Background" Value="{DynamicResource SwitchOn}"/>
+                  <Setter TargetName="SwitchTrack" Property="BorderBrush" Value="{DynamicResource SwitchOn}"/>
+                  <Setter TargetName="SwitchThumb" Property="RenderTransform">
+                    <Setter.Value><TranslateTransform X="16"/></Setter.Value>
+                  </Setter>
+                </Trigger>
+                <MultiTrigger>
+                  <MultiTrigger.Conditions><Condition Property="IsChecked" Value="False"/><Condition Property="IsMouseOver" Value="True"/></MultiTrigger.Conditions>
+                  <Setter TargetName="SwitchTrack" Property="Background" Value="{DynamicResource SwitchOffHover}"/>
+                </MultiTrigger>
+                <MultiTrigger>
+                  <MultiTrigger.Conditions><Condition Property="IsChecked" Value="True"/><Condition Property="IsMouseOver" Value="True"/></MultiTrigger.Conditions>
+                  <Setter TargetName="SwitchTrack" Property="Background" Value="{DynamicResource SwitchOnHover}"/>
+                </MultiTrigger>
+                <MultiTrigger>
+                  <MultiTrigger.Conditions><Condition Property="IsChecked" Value="False"/><Condition Property="IsPressed" Value="True"/></MultiTrigger.Conditions>
+                  <Setter TargetName="SwitchTrack" Property="Background" Value="{DynamicResource SwitchOffPressed}"/>
+                </MultiTrigger>
+                <MultiTrigger>
+                  <MultiTrigger.Conditions><Condition Property="IsChecked" Value="True"/><Condition Property="IsPressed" Value="True"/></MultiTrigger.Conditions>
+                  <Setter TargetName="SwitchTrack" Property="Background" Value="{DynamicResource SwitchOnPressed}"/>
+                </MultiTrigger>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                  <Setter TargetName="SwitchFocus" Property="BorderBrush" Value="{DynamicResource SwitchAccent}"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+            """);
+        toggle.Click+=(_,_)=>changed(toggle.IsChecked==true);
+        return toggle;
+    }
+    // Compact settings row: title and explanation on the left, toggle on the right, on an existing ScreenIt surface.
+    private static Border StartupRow(AutoStartStatus status,ToggleButton toggle)
+    {
+        var text=new StackPanel { VerticalAlignment=VerticalAlignment.Center };
+        text.Children.Add(new TextBlock { Text=L.T("Start with Windows"),FontSize=14,FontWeight=FontWeights.SemiBold,Foreground=UtilityUi.Ink,TextWrapping=TextWrapping.Wrap });
+        text.Children.Add(new TextBlock { Text=L.T("Launch ScreenIt automatically when you sign in."),FontSize=12,Foreground=UtilityUi.Muted,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,3,0,0) });
+        if(StartupNote(status) is { } note) text.Children.Add(new TextBlock { Text=note,FontSize=12,Foreground=UtilityUi.Muted,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,6,0,0) });
+        var grid=new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width=new GridLength(1,GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width=GridLength.Auto });
+        grid.Children.Add(text);
+        toggle.Margin=new Thickness(16,0,0,0);Grid.SetColumn(toggle,1);grid.Children.Add(toggle);
+        return new Border { Background=Appearance.Palette.Surface,BorderBrush=Appearance.Palette.Border,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(6),Padding=new Thickness(14,12,14,12),Margin=new Thickness(0,0,0,12),Child=grid };
+    }
     internal void Refresh()
     {
         string? focusName=Keyboard.FocusedElement is FrameworkElement focused && Window.GetWindow(focused)==this ? AutomationProperties.GetName(focused) : null;
@@ -167,6 +252,10 @@ internal sealed class SettingsWindow : Window
             content.Children.Add(Choice("Appearance",Enum.GetValues<ThemePreference>().Select(t=>((object)t,L.T(t.ToString()))),owner.Preferences.Theme,value=>owner.ChangePreferences(theme:(ThemePreference)value)));
             var languageLabel=Text("Language",14,true);languageLabel.Margin=new Thickness(0,0,0,8);content.Children.Add(languageLabel);
             content.Children.Add(Choice("Language",new[]{((object)"en","English"),((object)"ru","Русский")},owner.Preferences.Language,value=>owner.ChangePreferences(language:(string)value)));
+            var status=owner.AutoStartStatus;
+            // The toggle owns the real state: every Refresh rebuilds its appearance from AutoStartStatus.
+            var startup=Switch(status.Enabled,status.Registration!=AutoStartRegistration.Unreadable,value=> { error=owner.ChangeAutoStart(value) ? "" : owner.LastAutoStartFailure!.Message;Refresh(); });
+            content.Children.Add(StartupRow(status,startup));
         }
         else if(page==1)
         {

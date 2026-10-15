@@ -2,7 +2,12 @@
 
 История восстановлена по локальным Git tags, исходникам и изменениям между тегами. Даты ниже — даты тегов в UTC+03:00; дата публикации GitHub Release отдельно не установлена. История до первого доступного коммита отсутствует. Исследовательские этапы в `spikes/` не являются отдельными версиями продукта.
 
-## [Unreleased]
+## [0.2.1] - 2026-10-16
+
+### Added
+
+- Optional per-user «Запуск с Windows» переключатель в Settings (выключен по умолчанию): регистрация в HKCU `Run` с quoted executable path, отдельно от `settings.json`. Settings различает отсутствие, чужую/другую ScreenIt запись, внешний блок Windows и нераспознанное (undocumented) состояние, не выдавая последнее за подтверждённую блокировку. Изменение подтверждается readback, неуспешное включение откатывается с восстановлением прежнего значения и его типа (в т.ч. REG_EXPAND_SZ), без перезаписи внешних изменений и с отдельным сообщением при сбое компенсации. Disable перепроверяет владение перед удалением; чужая регистрация не удаляется. Inno uninstall удаляет только собственную запись установки. Deterministic проверки `--autostart-only` используют fake/изолированный registry с read-only tripwire; реальная автозагрузка Windows — manual acceptance.
+- Native переключатель «Запуск с Windows» в Settings на базе настоящего WPF `ToggleButton` с шаблоном ScreenIt (состояния off/on, hover, pressed, keyboard focus, disabled), синхронизированный с реальным состоянием автозапуска: отображаемое состояние не является источником истины, неуспешное действие возвращает прежнее состояние. Полная матрица состояний, доступность (name/TogglePattern) и снимки Light/Dark EN/RU покрыты `--settings-visual-only`.
 
 ## [0.2.0] - 2026-10-07
 
@@ -80,6 +85,7 @@
 
 В `0.1.0` runtime updater и runtime networking отсутствовали. Поддержка capture окна, persistent sessions и пользовательский Save As не реализованы ни в этом теге, ни в `0.1.1`.
 
+[0.2.1]: https://github.com/nickkho0201/ScreenIt/tree/v0.2.1
 [0.2.0]: https://github.com/nickkho0201/ScreenIt/tree/v0.2.0
 [0.1.2]: https://github.com/nickkho0201/ScreenIt/tree/v0.1.2
 [0.1.1]: https://github.com/nickkho0201/ScreenIt/tree/v0.1.1

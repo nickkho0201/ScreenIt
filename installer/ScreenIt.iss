@@ -1,4 +1,4 @@
-#define AppVersion "0.2.0"
+#define AppVersion "0.2.1"
 #ifndef PublishDir
   #define PublishDir "..\artifacts\release\publish"
 #endif
@@ -39,4 +39,33 @@ Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 Name: "{userprograms}\ScreenIt"; Filename: "{app}\ScreenIt.App.exe"; WorkingDir: "{app}"
 [Run]
 Filename: "{app}\ScreenIt.App.exe"; Description: "Launch ScreenIt"; Flags: nowait postinstall skipifsilent unchecked
-; No autostart, desktop shortcut, or removal of user settings / clipboard generations.
+; No desktop shortcut or removal of user settings / clipboard generations.
+; The optional per-user autostart entry is removed only when it belongs to this installation.
+[Code]
+function NormalizedStartupPath(Value: String): String;
+begin
+  Result := Trim(Value);
+  if (Length(Result) >= 2) and (Result[1] = '"') and (Result[Length(Result)] = '"') then
+    Result := Trim(Copy(Result, 2, Length(Result) - 2));
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  StoredPath: String;
+  InstalledPath: String;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    InstalledPath := ExpandConstant('{app}\ScreenIt.App.exe');
+    // Revalidate the exact registered command immediately before deleting, and never touch a value that
+    // belongs to another copy or application. Inno has no atomic compare-and-delete, so a registration
+    // replaced in the gap between this query and the delete cannot be caught here.
+    if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'ScreenIt', StoredPath)
+      and (CompareText(NormalizedStartupPath(StoredPath), InstalledPath) = 0) then
+    begin
+      // Delete the approval record only after the matching Run value was actually removed.
+      if RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'ScreenIt') then
+        RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run', 'ScreenIt');
+    end;
+  end;
+end;
