@@ -230,5 +230,16 @@ An interaction could not complete. Cancel/restart this capture.|Не удало�
 ScreenIt could not complete the interaction. Existing session data remain in memory.|Не удалось завершить действие. Текущая сессия осталась в памяти.
 ScreenIt could not start. Check the desktop runtime and whether the capture hotkey is available.|Не удалось запустить ScreenIt. Проверьте среду выполнения и доступность горячих клавиш.
 Some configured shortcuts were unavailable. Available defaults are active; open Settings.|Некоторые сочетания недоступны. Используются доступные стандартные; откройте настройки.
+Start with Windows|Запуск с Windows
+Launch ScreenIt automatically when you sign in.|Запускать ScreenIt автоматически при входе в систему.
+Windows is currently blocking this startup entry. Enable it in Windows startup apps.|Windows сейчас блокирует эту запись автозапуска. Включите её в приложениях автозагрузки Windows.
+Windows manages this startup entry; ScreenIt cannot confirm its state.|Этой записью автозапуска управляет Windows; ScreenIt не может подтвердить её состояние.
+The Windows startup setting could not be read.|Не удалось прочитать настройку автозапуска Windows.
+The Windows startup setting could not be changed.|Не удалось изменить настройку автозапуска Windows.
+Another application already uses the ScreenIt startup entry. It was left unchanged.|Запись автозапуска ScreenIt уже используется другим приложением. Она не изменена.
+Another ScreenIt copy owns this startup entry. It was left unchanged.|Этой записью автозапуска владеет другая копия ScreenIt. Она не изменена.
+The installation path is too long for Windows startup. Move ScreenIt to a shorter folder.|Путь установки слишком длинный для автозапуска Windows. Переместите ScreenIt в папку с более коротким путём.
+The startup setting is only partially applied. Check Windows startup apps.|Настройка автозапуска применена частично. Проверьте приложения автозагрузки Windows.
+Windows changed the startup entry during the change. It was left as is.|Windows изменила запись автозапуска во время операции. Она оставлена без изменений.
 """;
 }

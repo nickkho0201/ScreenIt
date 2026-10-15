@@ -1,6 +1,6 @@
 # Architecture
 
-Архитектура исходников `0.2.0` от 2026-10-07. Публичное использование — в [README](README.md), команды и проверки — в [DEVELOPMENT](DEVELOPMENT.md), правила изменений — в [AGENTS](AGENTS.md).
+Архитектура исходников `0.2.1` от 2026-10-16. Публичное использование — в [README](README.md), команды и проверки — в [DEVELOPMENT](DEVELOPMENT.md), правила изменений — в [AGENTS](AGENTS.md).
 
 ## System overview
 
@@ -141,7 +141,9 @@ Settings владеет отдельным временным ShortcutRecordingH
 
 Preferences сохраняет дополнительное optional поле annotationModifier (`ctrl`/`shift`/`alt`) в существующей schemaVersion 2. Отсутствующее/неподдерживаемое поле даёт Ctrl; старые theme/language/hotkeys и unknown fields сохраняются. Save failure возвращает прежнее значение. Формат screenshot/session не изменён.
 
-L использует английские фразы как keys, EN/RU dictionary и parameter patterns; refresh tree не должен переводить user TextBox content. Appearance выбирает palette и читает HKCU AppsUseLightTheme для System, реагирует на WM_SETTINGCHANGE/WM_THEMECHANGED. Autostart setting, Run registry key и startup task отсутствуют.
+L использует английские фразы как keys, EN/RU dictionary и parameter patterns; refresh tree не должен переводить user TextBox content. Appearance выбирает palette и читает HKCU AppsUseLightTheme для System, реагирует на WM_SETTINGCHANGE/WM_THEMECHANGED.
+
+Optional autostart — единственный дополнительный HKCU Run value `ScreenIt` с quoted executable path; отдельного settings-поля и startup task нет. `AutoStart.cs` владеет чтением/изменением регистрации и не смешивается с preferences. Read классифицирует значение как Missing/Valid/Stale/Foreign/Unreadable и отдельно интерпретирует undocumented StartupApproved blob (observed 0x02/0x06 enabled, 0x03/0x07 disabled, иначе Unknown). `Enabled` = Valid + approval NotPresent/Enabled; Unknown никогда не показывается как confirmed Windows blocking. Enable/Disable подтверждают результат readback. Snapshot хранит value вместе с его реальным `RegistryValueKind` (raw, без expand environment names), поэтому неуспешный Enable восстанавливает прежние значение и тип (в т.ч. REG_EXPAND_SZ), а не подменяет тип. Значение или тип, изменённые внешне во время операции, не перезаписываются (RollbackConflict), сбой компенсации сообщается отдельно (Rollback). Disable перепроверяет владение непосредственно перед удалением; атомарного compare-and-delete для Run value нет, поэтому окно между проверкой и удалением лишь сокращается. Регистрация, принадлежащая другой копии ScreenIt (Stale) или другому приложению (Foreign), не удаляется молча; явный Enable может заменить регистрацию другой копии. Command ограничен задокументированными 260 символами. В production Settings → General вызывает Coordinator.ChangeAutoStart; verification подставляет fake/isolated store через фабрику `AutoStart.Create`.
 
 ## Updater and installer
 
@@ -159,7 +161,7 @@ Lifecycle остаётся window-scoped: Hide/show и переключение 
 
 Installed определяется по 64-bit HKCU uninstall entry с AppId, DisplayName, InstallLocation == AppContext.BaseDirectory и наличию `unins000.exe`. Portable открывает validated release page. Installed после download повторяет identity/hash check, затем спрашивает подтверждение RAM loss/unsigned setup. Только успешный Process.Start setup приводит к `ExitForUpdate`; failure/cancel сохраняет приложение. SHA-256 с того же release не является code signature или независимым trust root.
 
-Inno AppId `{75AF53B9-2BC6-4AC3-A7D4-859884B5EAF0}` и mutex `Local\ScreenIt.MVP` связывают runtime, updater detection и install/upgrade. Setup ставит под `%LOCALAPPDATA%\Programs\ScreenIt`, `PrivilegesRequired=lowest`, Windows build ≥22000/x64, Start Menu и uninstall entry. `CloseApplications=no`, `RestartApplications=no`: setup не убивает и не перезапускает старую копию; AppMutex блокирует replacement/uninstall работающей программы. App запускает setup и затем выходит; результат установки после выхода не отслеживается. Optional final-page launch unchecked/skip-if-silent. Settings и clipboard temp вне install directory не удаляются. Automated rollback, downgrade migration и RAM restore отсутствуют.
+Inno AppId `{75AF53B9-2BC6-4AC3-A7D4-859884B5EAF0}` и mutex `Local\ScreenIt.MVP` связывают runtime, updater detection и install/upgrade. Setup ставит под `%LOCALAPPDATA%\Programs\ScreenIt`, `PrivilegesRequired=lowest`, Windows build ≥22000/x64, Start Menu и uninstall entry. `CloseApplications=no`, `RestartApplications=no`: setup не убивает и не перезапускает старую копию; AppMutex блокирует replacement/uninstall работающей программы. App запускает setup и затем выходит; результат установки после выхода не отслеживается. Optional final-page launch unchecked/skip-if-silent. Uninstall через `[Code] CurUninstallStepChanged(usUninstall)` удаляет Run value `ScreenIt` и связанный StartupApproved value только когда quoted path совпадает с `{app}\ScreenIt.App.exe` и Run value успешно удалён; регистрация portable копии остаётся. Settings и clipboard temp вне install directory не удаляются. Automated rollback, downgrade migration и RAM restore отсутствуют.
 
 ## Windows integration
 
@@ -172,7 +174,7 @@ Inno AppId `{75AF53B9-2BC6-4AC3-A7D4-859884B5EAF0}` и mutex `Local\ScreenIt.MVP
 | Clipboard — `ClipboardTransport.cs` | `user32` clipboard formats/open/empty/set/close; `kernel32` HGLOBAL allocation/locking/free. Shell CF_HDROP file-list layout; actual image data хранится в PNG files. |
 | Receiver/input — `PasteInput.cs` | `user32` foreground/root/PID/window/key-state, SendInput, clipboard owner/sequence guards; без receiver activation и low-level hooks. |
 | Toasts/prompts/settings | `user32` monitor work area и window styles/hit-test/noactivate/placement, prompt foreground; `dwmapi` title-bar theme attribute. |
-| Preferences/theme/install identity | LocalApplicationData, HKCU Windows theme registry и 64-bit HKCU Inno uninstall entry; нет autostart registration. |
+| Preferences/theme/install identity | LocalApplicationData, HKCU Windows theme registry, optional HKCU Run registration `ScreenIt` и 64-bit HKCU Inno uninstall entry. |
 | Update/install shell | HttpClient HTTPS, Windows ACL текущего SID для update generation, shell Process.Start для validated page/setup; Inno per-user install/shortcut/uninstall/mutex. |
 | Diagnostics | `GetGuiResources`, process handles/memory, installed RAM, remote-session и DPI-awareness queries; не постоянный telemetry/logging service. |
 
@@ -206,10 +208,10 @@ Capture catch закрывает overlays и сообщает safe error; commit
 ## Known limitations and evidence boundaries
 
 - RAM-only sessions без cap/history/crash recovery; original+annotated rasters и draft snapshot stacks увеличивают memory usage. Committed снимки нельзя reopen.
-- Нет cross-monitor region, persistent Save As, startup integration, cross-platform backend и receiver acknowledgement. Window capture использует WGC; real WPF occlusion/DPI/resource checks не доказывают совместимость всех browsers/accelerated/protected/HDR surfaces.
+- Нет cross-monitor region, persistent Save As, cross-platform backend и receiver acknowledgement. Window capture использует WGC; real WPF occlusion/DPI/resource checks не доказывают совместимость всех browsers/accelerated/protected/HDR surfaces.
 - Нет awaited capture/preparation shutdown и универсального transaction rollback для clipboard, session/raster commit или settings.
 - README сообщает manual PASS для ChatGPT Web sequential paste и текущей 100%/125% mixed-DPI topology с negative origin. Физические 150%/200%, portrait, HDR/protected content и system transitions полностью не подтверждены.
 - Архивный [clipboard RESULTS](spikes/clipboard-transfer/RESULTS.md) в заключительном production note ещё помечает Web acceptance OPEN/NOT TESTED, тогда как текущий README сообщает PASS. Это расхождение evidence chronology; точные receiver versions и обновлённая tracked acceptance matrix отсутствуют. Не расширять совместимость на все приложения.
 - [installer RELEASE-NOTES](installer/RELEASE-NOTES.md) содержит notes текущей версии и историю. Локальные ignored artifacts могут содержать дополнительные прошлые отчёты, но не составляют воспроизводимую tracked test history.
-- В manifest assemblyIdentity ещё `0.1.0.0`; App csproj/updater version — `0.2.0.0`/`0.2.0`. Это разные поля; release version берётся из assembly, не manifest.
+- В manifest assemblyIdentity ещё `0.1.0.0`; App csproj/updater version — `0.2.1.0`/`0.2.1`. Это разные поля; release version берётся из assembly, не manifest.
 - Installer/app unsigned; checksum и ACL не заменяют publisher signature. CI/CD workflows в tracked repository отсутствуют.

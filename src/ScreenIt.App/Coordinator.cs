@@ -24,6 +24,7 @@ internal sealed class Coordinator : IDisposable
     internal string PreferencesPath { get; set; }=Appearance.SettingsPath;
     internal SettingsWindow? Settings { get; private set; }
     private readonly HotkeyRegistration hotkeys;
+    private readonly IAutoStart autoStart;
     private readonly Forms.ToolStripMenuItem settingsCommand=new("Settings"),moreCommand=new("More"),exitCommand=new("Exit");
     private string topology = "";
     private bool busy, suspended, disposed, startupNotified;
@@ -41,10 +42,11 @@ internal sealed class Coordinator : IDisposable
     internal long CaptureGeneration { get; private set; }
     internal Exception? LastCaptureFailure { get; private set; }
     internal IntPtr ControlHandle => source.Handle;
-    public Coordinator(bool showTray = true, bool registerHotkey = true,Preferences? preferences=null)
+    public Coordinator(bool showTray = true, bool registerHotkey = true,Preferences? preferences=null,IAutoStart? autoStart=null)
     {
         var hwnd = new WindowInteropHelper(control).EnsureHandle(); source = HwndSource.FromHwnd(hwnd)!; source.AddHook(Hook);
         Preferences=preferences ?? new Preferences { Language="en",Theme=ThemePreference.Dark };
+        this.autoStart=autoStart ?? AutoStart.Create();
         hotkeys=new(hwnd,registerHotkey);
         bool fallback=!hotkeys.Start(Preferences.Hotkeys);
         L.Changed+=LanguageChanged;
@@ -116,6 +118,14 @@ internal sealed class Coordinator : IDisposable
         try { Preferences.Save(PreferencesPath); }
         catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { Preferences.AnnotationModifier=old;return false; }
         foreach(var overlay in overlays) overlay.Refresh();return true;
+    }
+    // Optional per-user "Start with Windows" registration; the registry is the source of truth.
+    internal AutoStartStatus AutoStartStatus => autoStart.Read();
+    internal AutoStartFailure? LastAutoStartFailure { get; private set; }
+    internal bool ChangeAutoStart(bool enabled)
+    {
+        LastAutoStartFailure=enabled ? autoStart.Enable() : autoStart.Disable();
+        return LastAutoStartFailure==null;
     }
     internal void ExitForUpdate() { Dispose();Application.Current.Shutdown(); }
     private IntPtr Hook(IntPtr hwnd, int msg, IntPtr wp, IntPtr lp, ref bool handled)

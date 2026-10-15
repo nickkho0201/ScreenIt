@@ -1,3 +1,13 @@
+## ScreenIt 0.2.1 — 2026-10-16
+
+### Start with Windows
+
+- Optional per-user autostart, off by default, managed from **Settings → General** with a native ScreenIt switch.
+- To enable or disable it, toggle **Start with Windows**; the displayed state always reflects the real Windows `Run` registration. If Windows has disabled the entry, Settings says so.
+- Uninstall removes only this installation's own startup entry; a portable copy's entry is left untouched. The choice is stored only in the current user's registry, never in `settings.json`.
+
+Download **ScreenIt-Setup-0.2.1.exe** or **ScreenIt-0.2.1-win-x64-portable.zip**. Both are self-contained for Windows 11 x64; **SHA256SUMS.txt** contains their checksums. Upgrade from 0.2.0 keeps the installation identity and preferences; autostart remains opt-in and does not change on upgrade. Sessions remain RAM-only; installer/executable remain unsigned.
+
 ## ScreenIt 0.2.0 — 2026-10-07
 
 ### Faster capture

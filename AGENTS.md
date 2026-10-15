@@ -26,9 +26,9 @@ Spikes — архив исследований, не текущая implementati
 - Clear/Discard/Exit с потерей данных используют существующие safe confirmations. Отмена сохраняет соответствующее retained состояние.
 - Совместимость обещать в пределах evidence; задержка между pastes не является acknowledgement принимающего приложения.
 
-## Current capability state (0.2.0)
+## Current capability state (0.2.1)
 
-Текущие capture modes — region одного монитора, window через W и full focused-monitor через Space. Завершение по умолчанию делает quick commit; удерживаемый настроенный modifier открывает Annotation. Cross-monitor region, Save As, autostart и повторное редактирование committed снимков пока не реализованы. Feedback без звука; updater не делает автоматический restart/rollback. Это факты версии 0.2.0, а не запреты на будущие специально спроектированные функции.
+Текущие capture modes — region одного монитора, window через W и full focused-monitor через Space. Завершение по умолчанию делает quick commit; удерживаемый настроенный modifier открывает Annotation. Cross-monitor region, Save As и повторное редактирование committed снимков пока не реализованы. Optional per-user autostart доступен из Settings (выключен по умолчанию). Feedback без звука; updater не делает автоматический restart/rollback. Это факты версии 0.2.1, а не запреты на будущие специально спроектированные функции.
 
 ## Stable behavioral contract
 
@@ -86,7 +86,7 @@ Spikes — архив исследований, не текущая implementati
 - **Clipboard/input:** global clipboard overwrite, ownership transfer, partial publication/SendInput, synthetic key release, focus guards/UIPI. Не читать/логировать чужой clipboard или автоматизировать receiver без task authorization.
 - **Filesystem:** retained PNGs, marker/TTL/reparse checks, CreateNew, settings overwrite и unknown-field preservation; не удалять unrelated/locked files, preferences или reviewed release artifacts.
 - **Settings:** malformed/oversized files могут стать defaults и быть заменены при Save; schemaVersion не gate миграции. Формат меняется только с проверкой old-user path и owner review.
-- **Startup/update/installer:** в 0.1.2 autostart не реализован; не добавлять Run/task/background network в unrelated task. TLS URL allowlist, redirects, byte limits, checksums, private generation ACL, identity detection и RAM-loss confirmation — sensitive boundaries.
+- **Startup/update/installer:** autostart — отдельный optional HKCU `Run` value, управляемый из Settings; не менять его semantics и не добавлять Run/task/background network в unrelated task. TLS URL allowlist, redirects, byte limits, checksums, private generation ACL, identity detection и RAM-loss confirmation — sensitive boundaries.
 
 Suite/production smoke могут менять clipboard/user settings и занимать hotkeys; installer/upgrade tests реально меняют установку. Выполнять на подготовленном desktop/account, соблюдать preconditions из DEVELOPMENT. Автоматизированный PASS не подтверждает physical receiver/DPI/system UX.
 

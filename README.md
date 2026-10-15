@@ -2,7 +2,7 @@ English | [Русский](README.ru.md)
 
 # ScreenIt
 
-**ScreenIt 0.2.0**
+**ScreenIt 0.2.1**
 
 ScreenIt is a local-first Windows screenshot annotation utility designed for quickly showing AI assistants, developers, designers, and teammates exactly what you mean.
 
@@ -22,24 +22,25 @@ Focus your chat/composer and press **Ctrl+Alt+V once**. ScreenIt sequentially pa
 - Paste Session and confirmed Clear Session.
 - System/Dark/Light appearance, English/Russian UI, and configurable global shortcuts (0.2.0).
 - Compact, content-sized feedback above the taskbar with soft fades, including confirmation that ScreenIt is running in the background; without sound.
+- Optional per-user **Start with Windows** autostart, off by default, managed from Settings.
 - Local-first: no account, cloud, backend, or telemetry.
 
 ## Installation
 
 ### Installer
 
-1. Download **ScreenIt-Setup-0.2.0.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
+1. Download **ScreenIt-Setup-0.2.1.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
 2. Run the installer.
 3. Start ScreenIt from the Start menu.
 4. ScreenIt runs in the system tray.
 
-Installation is per-user, without mandatory administrator privileges or autostart. Uninstall removes application files but preserves your preferences.
+Installation is per-user, without mandatory administrator privileges. **Start with Windows** is an optional, off-by-default Settings switch; uninstall removes the installation's own startup entry while a portable copy's entry is left untouched. Uninstall removes application files but preserves your preferences.
 
 **ScreenIt is currently unsigned. Windows SmartScreen may show a warning for early releases because they do not have a code-signing certificate.** Do not disable SmartScreen globally.
 
 ### Portable
 
-Download **ScreenIt-0.2.0-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
+Download **ScreenIt-0.2.1-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
 
 ### Requirements
 
@@ -57,7 +58,7 @@ For a window screenshot, press **W** in capture selection, hover an eligible win
 
 Stay in the same target window during Paste Session. Focus changes or errors stop pasting; your ScreenIt session is unchanged. Already pasted items cannot be rolled back, and retry may produce duplicates.
 
-Tray → **Settings** opens General, Hotkeys, and About. General selects **System / Dark / Light** and **English / Русский**; changes apply immediately. New installations default to System and the Windows UI language (Russian or English fallback). Existing Dark/Light preferences are preserved. System follows changes to the Windows app theme.
+Tray → **Settings** opens General, Hotkeys, and About. General selects **System / Dark / Light** and **English / Русский**; changes apply immediately. New installations default to System and the Windows UI language (Russian or English fallback). Existing Dark/Light preferences are preserved. System follows changes to the Windows app theme. General also has an optional **Start with Windows** switch, off by default, which registers ScreenIt in the current user's Windows startup; if Windows has disabled the entry, Settings says so.
 
 Hotkeys lets you record a new Capture/Paste/Clear combination using Ctrl, Alt, Shift, or Win plus a letter, digit, F1–F12, Backspace, Delete, Insert, Home, End, PageUp/PageDown, arrow key, or Space. Unavailable or duplicate combinations keep previous bindings active. **Reset defaults** restores the default set atomically. Other overlay shortcuts remain fixed. Tray → **More** contains secondary manual copy commands.
 
@@ -97,7 +98,7 @@ The only runtime network functionality is an explicit **Settings → About → C
 
 Paste Session explicitly transfers data to your selected application through Windows clipboard/input. Further processing depends on that receiver; ScreenIt does not control its network behavior or third-party clipboard managers.
 
-Sessions live in RAM. Appearance, language, global shortcuts, and annotation modifier are saved locally (schema version 2): `%LOCALAPPDATA%/ScreenIt/settings.json`. Older files default the modifier to Ctrl. Paste creates temporary PNGs under `%TEMP%/ScreenIt/Clipboard-v1`. They remain after paste, Clear, and exit for asynchronous receivers; owned generations older than seven days are cleaned on a later startup.
+Sessions live in RAM. Appearance, language, global shortcuts, and annotation modifier are saved locally (schema version 2): `%LOCALAPPDATA%/ScreenIt/settings.json`. Older files default the modifier to Ctrl. The optional Start with Windows switch is stored only in the current user's Windows `Run` registry entry, never in `settings.json`. Paste creates temporary PNGs under `%TEMP%/ScreenIt/Clipboard-v1`. They remain after paste, Clear, and exit for asynchronous receivers; owned generations older than seven days are cleaned on a later startup.
 
 ## Updates (0.2.0)
 
