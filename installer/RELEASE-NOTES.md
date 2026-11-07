@@ -1,3 +1,24 @@
+## ScreenIt 0.2.3 — 2026-11-07
+
+### Draw freely with Pencil
+
+- Select **Pencil** on the annotation toolbar or press **P**, then draw with the left mouse button held down.
+- Strokes use the existing accent color and white outline, and appear in the final screenshot without creating comment markers.
+- Each stroke supports selection, Delete and Undo/Redo as one action. Escape, focus loss or switching tools cancels an unfinished stroke.
+- The annotation toolbar wraps when there is not enough width for all buttons.
+
+### Comments only where you left them
+
+- Paste Session and Copy Session Comments now include text only for screenshots with comment markers.
+- Images without comments are still pasted and keep their letters: A/B/C images can have text sections only for A/C.
+- Screenshot ordering, marker numbering and the retained session are unchanged.
+
+Download **ScreenIt-Setup-0.2.3.exe** or **ScreenIt-0.2.3-win-x64-portable.zip**. Both are self-contained for Windows 11 x64; **SHA256SUMS.txt** contains their checksums. Existing installation identity and preferences are preserved. Sessions remain RAM-only; installer/executable remain unsigned.
+
+### Validation
+
+Release build, full automated verification (3125 checks), and portable smoke with default/custom hotkeys passed. The portable ZIP was extracted and all 477 files matched publish hashes. The owner manually accepted Pencil and the filtered session-comment workflow in the test build. Fresh install/upgrade execution was not re-tested for this release.
+
 ## ScreenIt 0.2.2 — 2026-11-07
 
 ### Clear Session your way

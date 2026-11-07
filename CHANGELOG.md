@@ -2,7 +2,7 @@
 
 История восстановлена по локальным Git tags, исходникам и изменениям между тегами. Даты ниже — даты тегов в UTC+03:00; дата публикации GitHub Release отдельно не установлена. История до первого доступного коммита отсутствует. Исследовательские этапы в `spikes/` не являются отдельными версиями продукта.
 
-## [Unreleased]
+## [0.2.3] - 2026-11-07
 
 ### Fixed
 
@@ -104,6 +104,7 @@
 
 В `0.1.0` runtime updater и runtime networking отсутствовали. Поддержка capture окна, persistent sessions и пользовательский Save As не реализованы ни в этом теге, ни в `0.1.1`.
 
+[0.2.3]: https://github.com/nickkho0201/ScreenIt/tree/v0.2.3
 [0.2.2]: https://github.com/nickkho0201/ScreenIt/tree/v0.2.2
 [0.2.1]: https://github.com/nickkho0201/ScreenIt/tree/v0.2.1
 [0.2.0]: https://github.com/nickkho0201/ScreenIt/tree/v0.2.0

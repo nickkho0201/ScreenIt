@@ -2,7 +2,7 @@ English | [Русский](README.ru.md)
 
 # ScreenIt
 
-**ScreenIt 0.2.2**
+**ScreenIt 0.2.3**
 
 ScreenIt is a local-first Windows screenshot annotation utility designed for quickly showing AI assistants, developers, designers, and teammates exactly what you mean.
 
@@ -12,7 +12,7 @@ Capture a region, window, or full monitor and annotate directly in the desktop o
 
 Focus your chat/composer and press **Ctrl+Alt+V once**. ScreenIt sequentially pastes each screenshot as a separate image, followed by structured comments.
 
-Unreleased: comment text mentions only screenshots with comment markers. Images without markers are still pasted and keep their letters (for example, images A/B/C with comments only for A/C).
+Comment text mentions only screenshots with comment markers. Images without markers are still pasted and keep their letters (for example, images A/B/C with comments only for A/C).
 
 ## Features
 
@@ -20,7 +20,7 @@ Unreleased: comment text mentions only screenshots with comment markers. Images 
 - Region/window/full-monitor capture, multi-monitor and mixed-DPI foundation.
 - Markers with structured comments; marker move/edit/delete.
 - Arrows, rectangles, and Undo/Redo for the current screenshot.
-- Pencil freehand drawing in one color, without comment markers (Unreleased).
+- Pencil freehand drawing in one color, without comment markers.
 - Multi-screenshot sessions: A, B, C… Z, AA…
 - Paste Session and Clear Session with an optional confirmation.
 - System/Dark/Light appearance, English/Russian UI, and configurable global shortcuts (0.2.0).
@@ -32,7 +32,7 @@ Unreleased: comment text mentions only screenshots with comment markers. Images 
 
 ### Installer
 
-1. Download **ScreenIt-Setup-0.2.2.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
+1. Download **ScreenIt-Setup-0.2.3.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
 2. Run the installer.
 3. Start ScreenIt from the Start menu.
 4. ScreenIt runs in the system tray.
@@ -43,7 +43,7 @@ Installation is per-user, without mandatory administrator privileges. **Start wi
 
 ### Portable
 
-Download **ScreenIt-0.2.2-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
+Download **ScreenIt-0.2.3-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
 
 ### Requirements
 
