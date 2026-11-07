@@ -19,7 +19,7 @@ internal static class PencilChecks
         check(draft.AddPencil(points),"Closed pencil stroke keeps full path despite identical endpoints");
         var stroke = draft.Items.OfType<PencilStroke>().Single(); points[0] = new(0,0);
         check(stroke.Points[0] == new P(100,100) && stroke.Points is System.Collections.ObjectModel.ReadOnlyCollection<P>,"Pencil owns immutable point snapshot");
-        check(draft.NextMarker == 1 && draft.Comments() == "Screenshot A","Pencil creates no marker number or comment");
+        check(draft.NextMarker == 1 && draft.Comments() == "","Pencil creates no marker number or comment");
         check(Geo.Hit(draft.Items,new(150,102),800,600)?.Id == stroke.Id && Geo.Hit(draft.Items,new(150,130),800,600) == null,"Pencil hit test follows segments, not bounding box");
         draft.Delete(stroke.Id); draft.Undo();
         check(draft.Items.Single() == stroke,"Delete/Undo restores whole stroke and GUID");

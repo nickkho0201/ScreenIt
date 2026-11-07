@@ -12,6 +12,8 @@ Capture a region, window, or full monitor and annotate directly in the desktop o
 
 Focus your chat/composer and press **Ctrl+Alt+V once**. ScreenIt sequentially pastes each screenshot as a separate image, followed by structured comments.
 
+Unreleased: comment text mentions only screenshots with comment markers. Images without markers are still pasted and keep their letters (for example, images A/B/C with comments only for A/C).
+
 ## Features
 
 - Windows 11 x64 tray utility with global shortcuts.

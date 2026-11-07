@@ -105,6 +105,8 @@ Unreleased: `PencilStroke` хранит собственную read-only коп�
 
 Raster pair содержит original crop и annotated frozen bitmap; Core хранит metadata, не WPF pixels. Painter выводит badges, arrows и boxes; comment body передаётся только через CommentFormatter. Формат текста остаётся `Screenshot A` / `A1 — ...` даже при русском UI.
 
+Unreleased: `CommentFormatter` возвращает пустую строку для снимка без Marker и пропускает такие секции при форматировании session/snapshot. `PreparePaste` использует этот же formatter для текста, сохраняя полный snapshot для PNGs: фильтрация текста не меняет состав изображений, screenshot letters или session. Copy Comments получает тот же текст.
+
 PNG materialization — технический clipboard transport, а не постоянное сохранение сессии. TemporaryImages создаёт GUID generation в `%TEMP%\ScreenIt\Clipboard-v1`, ownership marker/timestamp и `ScreenIt-A.png` и т. п. с `CreateNew`. Root/ancestors проверяются на reparse points. PNGs остаются после Paste, Clear, clipboard replacement и exit: receiver read completion неизвестен.
 
 Следующий startup удаляет только generations старше семи суток с ожидаемым GUID, marker, timestamp, допустимыми файлами, без подкаталогов/reparse points. Locked/denied generations сохраняются. Это ownership/TTL policy, не надёжное определение завершения чтения. Write failures могут оставить partial generation.

@@ -375,8 +375,7 @@ internal sealed class Coordinator : IDisposable
     {
         var snapshot = Session.Screenshots.ToArray();
         var images = snapshot.Select(s => (s.Letter, Rasters[s.Id].Annotated)).ToArray();
-        bool hasComments = snapshot.Any(s => s.Annotations.OfType<Marker>().Any(m => !string.IsNullOrWhiteSpace(m.Comment)));
-        var comments = hasComments ? string.Join(Environment.NewLine + Environment.NewLine, snapshot.Select(s => CommentFormatter.Format(s.Letter, s.Annotations))) : "";
+        var comments = CommentFormatter.Format(snapshot);
         var files = await Task.Run(() => temporary.Write(images));
         foreach (var file in files)
         {

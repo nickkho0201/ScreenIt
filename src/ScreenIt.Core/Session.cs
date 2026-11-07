@@ -43,12 +43,15 @@ public sealed class Session
 
 public static class CommentFormatter
 {
-    public static string Format(Session session) => string.Join(Environment.NewLine + Environment.NewLine,
-        session.Screenshots.Select(s => Format(s.Letter, s.Annotations)));
+    public static string Format(Session session) => Format(session.Screenshots);
+    public static string Format(IEnumerable<CommittedScreenshot> screenshots) => string.Join(Environment.NewLine + Environment.NewLine,
+        screenshots.Select(s => Format(s.Letter, s.Annotations)).Where(text => text.Length > 0));
     public static string Format(string letter, IEnumerable<Annotation> annotations)
     {
+        var markers = annotations.OfType<Marker>().OrderBy(m => m.Number).ToArray();
+        if (markers.Length == 0) return "";
         var lines = new List<string> { "Screenshot " + letter };
-        foreach (var marker in annotations.OfType<Marker>().OrderBy(m => m.Number))
+        foreach (var marker in markers)
         {
             var body = marker.Comment.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
             lines.Add(marker.Label + " — " + body[0]);

@@ -94,6 +94,10 @@ Smoke временно записывает deterministic EN/dark/default или
 
 ## Manual smoke testing
 
+### Comment text filtering (Unreleased)
+
+`ScreenIt.Verification.exe --comments-only` проверяет A/B/C с метками только у A/C, Unicode/multiline, пустую сессию, снимки только с графическими annotations и удалёнными метками, пропуск начальных/конечных пустых секций, неизменность letters/session и настоящий `PreparePaste` payload. Использует synthetic rasters и временные PNGs; не захватывает desktop, не регистрирует hotkeys и не заменяет clipboard. Отчёт — `artifacts/comments-verification.json`; checks также входят в full suite. Ручная приёмка: вставить A/B/C с метками у A/C и проверить три изображения и текст только A/C; отдельно проверить Copy Comments и сессию без меток.
+
 ### Pencil (Unreleased)
 
 `ScreenIt.Verification.exe --pencil-only` проверяет модель/immutable snapshots, замкнутые штрихи, границы, hit test, Undo/Redo/Delete, preview/commit/cancel, `P`, toolbar EN/RU × Dark/Light и финальный bitmap на synthetic source. Скрытый overlay не захватывает desktop, не регистрирует global hotkeys, не записывает preferences и не заменяет clipboard; допускается при работающей пользовательской копии. Отчёт — `artifacts/pencil-verification.json`, previews — `artifacts/pencil/`. Те же checks включены в full suite; его общие preconditions сохраняются.
