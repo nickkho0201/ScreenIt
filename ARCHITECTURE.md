@@ -1,6 +1,6 @@
 # Architecture
 
-Архитектура исходников `0.2.1` от 2026-10-16. Публичное использование — в [README](README.md), команды и проверки — в [DEVELOPMENT](DEVELOPMENT.md), правила изменений — в [AGENTS](AGENTS.md).
+Архитектура исходников `0.2.2` от 2026-11-07. Публичное использование — в [README](README.md), команды и проверки — в [DEVELOPMENT](DEVELOPMENT.md), правила изменений — в [AGENTS](AGENTS.md).
 
 ## System overview
 
@@ -213,10 +213,10 @@ Capture catch закрывает overlays и сообщает safe error; commit
 - README сообщает manual PASS для ChatGPT Web sequential paste и текущей 100%/125% mixed-DPI topology с negative origin. Физические 150%/200%, portrait, HDR/protected content и system transitions полностью не подтверждены.
 - Архивный [clipboard RESULTS](spikes/clipboard-transfer/RESULTS.md) в заключительном production note ещё помечает Web acceptance OPEN/NOT TESTED, тогда как текущий README сообщает PASS. Это расхождение evidence chronology; точные receiver versions и обновлённая tracked acceptance matrix отсутствуют. Не расширять совместимость на все приложения.
 - [installer RELEASE-NOTES](installer/RELEASE-NOTES.md) содержит notes текущей версии и историю. Локальные ignored artifacts могут содержать дополнительные прошлые отчёты, но не составляют воспроизводимую tracked test history.
-- В manifest assemblyIdentity ещё `0.1.0.0`; App csproj/updater version — `0.2.1.0`/`0.2.1`. Это разные поля; release version берётся из assembly, не manifest.
+- В manifest assemblyIdentity ещё `0.1.0.0`; App csproj/updater version — `0.2.2.0`/`0.2.2`. Это разные поля; release version берётся из assembly, не manifest.
 - Installer/app unsigned; checksum и ACL не заменяют publisher signature. CI/CD workflows в tracked repository отсутствуют.
 
-## Unreleased: Clear confirmation and UI feedback
+## Clear confirmation and UI feedback (0.2.2)
 
 UI polish: `UiMotion` запускает только конечные presentation animations (110–150 ms), без timers/polling и задержек business actions. Settings сохраняет текущую визуальную позицию переключателя через Refresh; page transition стартует после Loaded. ComboBox использует штатный PopupAnimation.Fade. Checkbox fade и сдвиги/проявления учитывают SystemParameters.ClientAreaAnimation; owned clocks снимаются на Unloaded.
 

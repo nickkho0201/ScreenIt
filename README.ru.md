@@ -2,7 +2,7 @@
 
 # ScreenIt
 
-**ScreenIt 0.2.1**
+**ScreenIt 0.2.2**
 
 ScreenIt — локальная утилита для Windows, которая помогает быстро делать снимки экрана, добавлять к ним пометки и передавать результат в ИИ-ассистент, разработчику, дизайнеру или коллеге.
 
@@ -32,7 +32,7 @@ ScreenIt — локальная утилита для Windows, которая п
 
 ### Установщик
 
-1. Скачайте **ScreenIt-Setup-0.2.1.exe** из раздела [Releases](https://github.com/nickkho0201/ScreenIt/releases).
+1. Скачайте **ScreenIt-Setup-0.2.2.exe** из раздела [Releases](https://github.com/nickkho0201/ScreenIt/releases).
 2. Запустите установщик.
 3. Откройте ScreenIt из меню «Пуск».
 4. После запуска приложение работает в области уведомлений Windows.
@@ -43,7 +43,7 @@ ScreenIt — локальная утилита для Windows, которая п
 
 ### Переносная версия
 
-Скачайте **ScreenIt-0.2.1-win-x64-portable.zip** из раздела [Releases](https://github.com/nickkho0201/ScreenIt/releases), распакуйте архив и запустите **ScreenIt.App.exe**.
+Скачайте **ScreenIt-0.2.2-win-x64-portable.zip** из раздела [Releases](https://github.com/nickkho0201/ScreenIt/releases), распакуйте архив и запустите **ScreenIt.App.exe**.
 
 ### Требования
 

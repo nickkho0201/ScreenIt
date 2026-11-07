@@ -23,12 +23,12 @@ Spikes — архив исследований, не текущая implementati
 - Clipboard transfer и updater — явные пользовательские действия. Нет telemetry, автоматической отправки screenshot/comment или startup/background update polling.
 - Background utility не должна красть receiver focus; feedback короткий, без отдельного тяжёлого interactive workflow. Ошибка feedback UI не отменяет уже успешно выполненное действие.
 - Comment bodies остаются editable Unicode text отдельно от bitmap; labels/geometry стабильны.
-- Clear/Discard/Exit с потерей данных используют существующие safe confirmations. Отмена сохраняет соответствующее retained состояние.
+- Clear/Discard/Exit с потерей данных используют существующие safe confirmations; Clear допускает явное сохранённое отключение предупреждения пользователем. Отмена сохраняет соответствующее retained состояние.
 - Совместимость обещать в пределах evidence; задержка между pastes не является acknowledgement принимающего приложения.
 
-## Current capability state (0.2.1)
+## Current capability state (0.2.2)
 
-Текущие capture modes — region одного монитора, window через W и full focused-monitor через Space. Завершение по умолчанию делает quick commit; удерживаемый настроенный modifier открывает Annotation. Cross-monitor region, Save As и повторное редактирование committed снимков пока не реализованы. Optional per-user autostart доступен из Settings (выключен по умолчанию). Feedback без звука; updater не делает автоматический restart/rollback. Это факты версии 0.2.1, а не запреты на будущие специально спроектированные функции.
+Текущие capture modes — region одного монитора, window через W и full focused-monitor через Space. Завершение по умолчанию делает quick commit; удерживаемый настроенный modifier открывает Annotation. Cross-monitor region, Save As и повторное редактирование committed снимков пока не реализованы. Optional per-user autostart доступен из Settings (выключен по умолчанию). Подтверждение Clear включено по умолчанию и может быть явно отключено пользователем; уведомление об очистке остаётся. Feedback без звука; updater не делает автоматический restart/rollback. Это факты версии 0.2.2, а не запреты на будущие специально спроектированные функции.
 
 ## Stable behavioral contract
 
@@ -42,7 +42,7 @@ Spikes — архив исследований, не текущая implementati
 - Escape сначала прерывает gesture/edit; annotation draft с сохранёнными annotations требует Discard confirmation. Cancel draft не расходует session letter.
 - Paste отправляет singleton image payloads по порядку, затем comments при их наличии; session неизменна. Обнаруженная смена target/clipboard/held keys останавливает flow; нет auto-retry/rollback receiver.
 - Copy/Paste заменяют clipboard без backup/restore. Temporary PNGs переживают clipboard replacement, Clear и Exit для asynchronous receivers.
-- Clear только после confirmation, Cancel safe default; Escape/X/default Enter сохраняют session. Успех сбрасывает Session и Rasters, следующий снимок A/A1.
+- Clear по умолчанию после confirmation; явный сохранённый opt-out пропускает окно, сохраняя guards и уведомление. В открытом confirmation Cancel safe default; Escape/X/default Enter сохраняют session и не сохраняют флажок. Успех сбрасывает Session и Rasters, следующий снимок A/A1.
 - Закрытие Settings не завершает app. Exit через tray/control с committed session спрашивает о потере RAM; single-instance второй process молча выходит.
 - Theme/language/hotkeys сохраняются локально; old Dark/Light load поддерживается. Не удалять preferences при upgrade/uninstall.
 - Update check manual; startup/background polling требует отдельного продуктового решения. Portable открывает page, installed download требует checksum и confirmation; app закрывается только после successful setup launch.

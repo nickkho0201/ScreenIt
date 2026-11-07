@@ -1,6 +1,6 @@
 # Development
 
-Практический workflow текущего ScreenIt `0.2.1`. Начните с [README](README.md) и [AGENTS](AGENTS.md); runtime flow и ограничения описаны в [ARCHITECTURE](ARCHITECTURE.md), история — в [CHANGELOG](CHANGELOG.md).
+Практический workflow текущего ScreenIt `0.2.2`. Начните с [README](README.md) и [AGENTS](AGENTS.md); runtime flow и ограничения описаны в [ARCHITECTURE](ARCHITECTURE.md), история — в [CHANGELOG](CHANGELOG.md).
 
 ## Environment
 
@@ -88,7 +88,7 @@ Smoke временно записывает deterministic EN/dark/default или
 .\verification\ScreenIt.Verification\bin\Release\net10.0-windows\ScreenIt.Verification.exe --check-updates
 ```
 
-Этот flag делает live GitHub request и **ожидает отсутствие версии новее 0.2.1**. После следующего релиза такой assertion может упасть при корректном updater. Default suite сеть updater не использует.
+Этот flag делает live GitHub request и **ожидает отсутствие версии новее 0.2.2**. После следующего релиза такой assertion может упасть при корректном updater. Default suite сеть updater не использует.
 
 Не покрыты автоматикой: принятие attachments/text реальным receiver, rollback данных получателя, SmartScreen/обычный setup UX, все physical DPI/HDR/protected-content configs, все lock/sleep/disconnect transitions, OS crash/termination и безопасное завершение всех async races. Manual acceptance обязательна для затронутого flow.
 
@@ -197,8 +197,8 @@ Builder выполняет `dotnet publish src/ScreenIt.App/ScreenIt.App.csproj 
 | Artifact | Содержимое |
 |---|---|
 | `artifacts/release/publish/` | App EXE/DLL, Core DLL, deps/runtimeconfig, .NET/Windows Desktop native/managed runtime files, LICENSE и `licenses/`. ICO embedded в App; отдельный assets directory не требуется. |
-| `ScreenIt-Setup-0.2.1.exe` | Per-user Inno installer всего publish tree. |
-| `ScreenIt-0.2.1-win-x64-portable.zip` | Всё содержимое publish без дополнительного enclosing directory. |
+| `ScreenIt-Setup-0.2.2.exe` | Per-user Inno installer всего publish tree. |
+| `ScreenIt-0.2.2-win-x64-portable.zip` | Всё содержимое publish без дополнительного enclosing directory. |
 | `SHA256SUMS.txt` | SHA-256 installer и ZIP с exact versioned names, lowercase hash. |
 
 Не ship source, spikes, verification, screenshots/evidence, settings или PDB. Inno включает всё из publish recursively: чистота publish directory обязательна. Byte-for-byte reproducibility архивов/metadata не гарантируется.
@@ -216,13 +216,13 @@ Builder выполняет `dotnet publish src/ScreenIt.App/ScreenIt.App.csproj 
 
 Сохранять AppId, mutex, per-user path и settings location. Установка/удаление не должны трогать `%LOCALAPPDATA%\ScreenIt` и clipboard temp. Installer AppMutex блокирует работающую копию; автоматического Kill/restart нет.
 
-Для **закрытой установленной 0.1.2** и сохранённого baseline:
+Для **закрытой установленной 0.2.1** и сохранённого baseline:
 
 ```powershell
-.\installer\Verify-Upgrade.ps1 -BaselineDirectory 'C:\path\to\retained-0.1.2-baseline'
+.\installer\Verify-Upgrade.ps1 -BaselineDirectory 'C:\path\to\retained-0.2.1-baseline'
 ```
 
-Baseline должен содержать `publish/`, `ScreenIt-Setup-0.1.2.exe` и SHA256SUMS; новая `0.2.1` — в `artifacts/release/`. Default baseline path — `artifacts/release-0.1.2-preserved`. Скрипт проверяет три ключевых installed binary hashes, reapplies baseline installer, затем upgrade installer с проверкой checksums, identity/path/version, preferences hashes, единственного uninstall entry, publish files и upgraded smoke. **Оставляет 0.2.1 установленной**, не удаляет existing installation. Проверка baseline ограничена указанными binaries, не всеми файлами old installation.
+Baseline должен содержать `publish/`, `ScreenIt-Setup-0.2.1.exe` и SHA256SUMS; новая `0.2.2` — в `artifacts/release/`. Default baseline path — `artifacts/release-0.2.1-preserved`. Скрипт проверяет три ключевых installed binary hashes, reapplies baseline installer, затем upgrade installer с проверкой checksums, identity/path/version, preferences hashes, единственного uninstall entry, publish files и upgraded smoke. **Оставляет 0.2.2 установленной**, не удаляет existing installation. Проверка baseline ограничена указанными binaries, не всеми файлами old installation.
 
 Дополнительная ручная проверка в disposable environment:
 
@@ -254,7 +254,7 @@ Tracked автоматического CI/CD/release job нет. Ниже checkl
 - Без push, tag, GitHub Release, публикации installer/package и изменения существующих release artifacts без прямой команды владельца.
 - Handoff rules для installer/updater/data/security changes — в [AGENTS](AGENTS.md). Завершить проверкой `git diff --check`, `git diff` и `git status --short`; untracked документы тоже необходимо прочитать, они не отображаются обычным `git diff`.
 
-## Unreleased: Clear confirmation and UI checks
+## Clear confirmation and UI checks (0.2.2)
 
 `ScreenIt.Verification.exe --settings-motion-only` открывает тестовые Settings с fake registrations и isolated preferences: проверяет запуск/завершение переходов, быстрые смены разделов/переключателей, повторное открытие/закрытие списков, прерывание checkbox fade и закрытие окна во время перехода. Отчёт — `artifacts/settings-motion-verification.json`. Реальный reduced-motion UX и субъективный темп проверяются вручную; системные preferences harness не меняет.
 

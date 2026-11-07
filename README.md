@@ -2,7 +2,7 @@ English | [Русский](README.ru.md)
 
 # ScreenIt
 
-**ScreenIt 0.2.1**
+**ScreenIt 0.2.2**
 
 ScreenIt is a local-first Windows screenshot annotation utility designed for quickly showing AI assistants, developers, designers, and teammates exactly what you mean.
 
@@ -29,7 +29,7 @@ Focus your chat/composer and press **Ctrl+Alt+V once**. ScreenIt sequentially pa
 
 ### Installer
 
-1. Download **ScreenIt-Setup-0.2.1.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
+1. Download **ScreenIt-Setup-0.2.2.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
 2. Run the installer.
 3. Start ScreenIt from the Start menu.
 4. ScreenIt runs in the system tray.
@@ -40,7 +40,7 @@ Installation is per-user, without mandatory administrator privileges. **Start wi
 
 ### Portable
 
-Download **ScreenIt-0.2.1-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
+Download **ScreenIt-0.2.2-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
 
 ### Requirements
 

@@ -1,3 +1,24 @@
+## ScreenIt 0.2.2 — 2026-11-07
+
+### Clear Session your way
+
+- Select **Don't ask again** when confirming Clear to skip future warnings. The **Session cleared** notification remains.
+- Restore the warning in **Settings → General** by turning off **Disable session clear warning**. Your choice is saved locally between launches; confirmation remains enabled by default.
+- Cancelling or closing the Clear dialog preserves your session and does not save the checkbox.
+
+### UI polish
+
+- Compact, matching switch cards for Windows startup and the Clear warning.
+- Short transitions for dropdowns, switches, checkboxes and Settings pages, respecting Windows animation preferences.
+- A contrasting **#A043C9** selection outline and glow while holding the annotation modifier (Ctrl by default). Screenshot pixels are unaffected.
+- Settings switches now execute their full action through UI Automation, including persistence/readback and failure rollback.
+
+Download **ScreenIt-Setup-0.2.2.exe** or **ScreenIt-0.2.2-win-x64-portable.zip**. Both are self-contained for Windows 11 x64; **SHA256SUMS.txt** contains their checksums. Installation identity and existing preferences are preserved. Sessions remain RAM-only; installer/executable remain unsigned.
+
+### Validation
+
+Release build, full automated verification (3070 checks), and portable smoke with default/custom hotkeys passed. Fresh install/upgrade execution and physical reduced-motion UX were not re-tested for this release.
+
 ## ScreenIt 0.2.1 — 2026-10-16
 
 ### Start with Windows
