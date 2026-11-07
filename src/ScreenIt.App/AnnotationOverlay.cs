@@ -22,6 +22,7 @@ internal sealed class AnnotationOverlay : Window
     private readonly Coordinator owner;
     private readonly Surface surface;
     private readonly SelectionGlow glow;
+    private static readonly SolidColorBrush AnnotationSelectionAccent=UtilityUi.Brush(160,67,201); // #A043C9, selection UI only.
     private readonly TextBlock modifierHint=new() { FontSize=12 };
     private readonly InlineUIContainer modifierInline;
     private readonly DropShadowEffect hintGlow=new() { ShadowDepth=0,BlurRadius=10,Opacity=0 };
@@ -39,6 +40,7 @@ internal sealed class AnnotationOverlay : Window
     {
         bool active=!AnnotationMode && IsActive && AnnotationHeld();
         if(active==ModifierActive) return;ModifierActive=active;
+        surface.InvalidateVisual();
         modifierHint.Foreground=active ? Appearance.Palette.AccentText : UtilityUi.Muted;
         bool animate=SystemParameters.ClientAreaAnimation;
         double current=(double)GetValue(GlowOpacityProperty);
@@ -364,7 +366,7 @@ internal sealed class AnnotationOverlay : Window
             {
                 var hole=new Rect(r.X,r.Y,r.Width,r.Height);
                 dc.DrawGeometry(dim,null,new CombinedGeometry(GeometryCombineMode.Exclude,new RectangleGeometry(full),new RectangleGeometry(hole)));
-                dc.DrawRectangle(null,new Pen(UtilityUi.Accent,1),hole);
+                dc.DrawRectangle(null,new Pen(window.ModifierActive && !window.AnnotationMode ? AnnotationSelectionAccent : UtilityUi.Accent,1),hole);
                 if(!window.AnnotationMode && window.owner.WindowMode) dc.DrawRectangle(new SolidColorBrush(((SolidColorBrush)UtilityUi.Accent).Color) { Opacity=.09 },null,hole);
             }
             else dc.DrawRectangle(dim,null,full);
@@ -400,7 +402,7 @@ internal sealed class AnnotationOverlay : Window
             double intensity=Appearance.Current==UiTheme.Light ? .31 : .28;
             for(int i=14;i>=1;i--)
             {
-                var brush=new SolidColorBrush(((SolidColorBrush)UtilityUi.Accent).Color) { Opacity=opacity*intensity*Math.Exp(-i*i/48.0) };
+                var brush=new SolidColorBrush(AnnotationSelectionAccent.Color) { Opacity=opacity*intensity*Math.Exp(-i*i/48.0) };
                 var ring=hole;ring.Inflate(i*.65,i*.65);dc.DrawRectangle(null,new Pen(brush,1.4),ring);
             }
             dc.Pop();

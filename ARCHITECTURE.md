@@ -54,7 +54,7 @@ Production entry point — `src/ScreenIt.App/Program.cs: Program.Main`; verifica
 5. Capture устанавливает `busy`, скрывает toast и Settings, закрывает tray menu, делает render yield и `DwmFlush`, снимает frames в `Task.Run`, проверяет topology и создаёт overlays. После всех `ContentRendered` (timeout 5 секунд) проверяет physical placement и фокусирует primary overlay.
 6. Drag/Space либо Window click создаёт draft и detached source в выбранном overlay; Coordinator назначает единственный `Active`. Без annotation modifier сразу вызывается обычный Commit, с удерживаемым modifier остаётся существующий annotation mode. Остальные overlays продолжают показывать frozen monitors, но не редактируют draft.
 7. Commit допускается для текущего Active, вне editing и suspension. Сначала render, затем `Session.Commit`, затем raster pair по GUID. Все overlays закрываются, отображается Added toast. Cancel закрывает временные окна без добавления снимка.
-8. Paste/Copy используют committed snapshot. Clear блокируется при capture/paste, иначе открывает единственный owned modeless confirmation; только Accepted очищает Session и Rasters. Cancel/Escape/X/обычный Enter сохраняют сессию.
+8. Paste/Copy используют committed snapshot. Clear блокируется при capture/paste, иначе открывает единственный owned modeless confirmation; при включённом предупреждении только Accepted очищает Session и Rasters; optional `disableClearConfirmation=true` пропускает окно после тех же busy/capture/paste/prompt guards. Cancel/Escape/X/обычный Enter сохраняют сессию.
 9. Закрытие Settings уничтожает только это окно. Tray Exit или `WM_CLOSE` control запускает Exit: закрывает Clear dialog, запрашивает подтверждение при наличии committed снимков, затем Dispose и Application.Shutdown.
 10. Dispose идемпотентен: отписывает language event, закрывает Settings/Clear, отменяет paste, освобождает toast timer/windows, overlays, session/rasters, tray/icon/menu, hotkeys, WTS registration, hook и control/source. Program освобождает mutex.
 
@@ -215,3 +215,11 @@ Capture catch закрывает overlays и сообщает safe error; commit
 - [installer RELEASE-NOTES](installer/RELEASE-NOTES.md) содержит notes текущей версии и историю. Локальные ignored artifacts могут содержать дополнительные прошлые отчёты, но не составляют воспроизводимую tracked test history.
 - В manifest assemblyIdentity ещё `0.1.0.0`; App csproj/updater version — `0.2.1.0`/`0.2.1`. Это разные поля; release version берётся из assembly, не manifest.
 - Installer/app unsigned; checksum и ACL не заменяют publisher signature. CI/CD workflows в tracked repository отсутствуют.
+
+## Unreleased: Clear confirmation and UI feedback
+
+UI polish: `UiMotion` запускает только конечные presentation animations (110–150 ms), без timers/polling и задержек business actions. Settings сохраняет текущую визуальную позицию переключателя через Refresh; page transition стартует после Loaded. ComboBox использует штатный PopupAnimation.Fade. Checkbox fade и сдвиги/проявления учитывают SystemParameters.ClientAreaAnimation; owned clocks снимаются на Unloaded.
+
+SettingsToggle automation peer направляет Toggle в тот же OnClick/callback, что обычный input, с сохранением/readback и rollback; изменение только IsChecked не заменяет действие. Disabled control отклоняет UIA Toggle. Contour/glow при annotation modifier используют `#A043C9` только в overlay UI; Painter не изменён.
+
+Preferences сохраняет optional boolean `disableClearConfirmation` в schemaVersion 2 (missing/invalid → false). Подтверждение по умолчанию включено. Clear dialog применяет «Больше не спрашивать» только после Accepted; Cancel/Escape/Enter/X не меняют preference. General позволяет отключить или вернуть предупреждение. Save failure откатывает preference/UI; явно подтверждённая очистка всё равно выполняется с warning toast о несохранённых настройках. Оба пути очистки используют ClearCommittedSession и сохраняют cleared toast, reset A/A1 и очистку Session/Rasters. Exit/Discard confirmations не меняются.

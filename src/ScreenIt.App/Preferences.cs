@@ -29,6 +29,7 @@ internal sealed class Preferences
     internal string Language { get; set; }=DefaultLanguage(CultureInfo.CurrentUICulture);
     internal Dictionary<GlobalAction,Hotkey> Hotkeys { get; set; }=Hotkey.Defaults();
     internal AnnotationModifier AnnotationModifier { get; set; }=AnnotationModifier.Ctrl;
+    internal bool DisableClearConfirmation { get; set; }
     private JsonObject original=new();
     internal static string DefaultLanguage(CultureInfo culture) => culture.TwoLetterISOLanguageName=="ru" ? "ru" : "en";
     internal static Preferences Load(string path)
@@ -41,6 +42,7 @@ internal sealed class Preferences
             if(p.original["theme"] is JsonValue t && t.TryGetValue<string>(out var theme) && theme is "system" or "dark" or "light") p.Theme=Enum.Parse<ThemePreference>(theme,true);
             if(p.original["language"] is JsonValue l && l.TryGetValue<string>(out var lang)) p.Language=lang is "en" or "ru" ? lang : "en";
             if(p.original["annotationModifier"] is JsonValue a && a.TryGetValue<string>(out var modifier) && modifier is "ctrl" or "shift" or "alt") p.AnnotationModifier=Enum.Parse<AnnotationModifier>(modifier,true);
+            if(p.original["disableClearConfirmation"] is JsonValue confirmation && confirmation.TryGetValue<bool>(out var disabled)) p.DisableClearConfirmation=disabled;
             if(p.original["hotkeys"] is JsonObject keys)
                 foreach(var action in Enum.GetValues<GlobalAction>())
                     if(keys[action.ToString().ToLowerInvariant()] is JsonObject key && key["modifiers"] is JsonValue m && m.TryGetValue<uint>(out uint modifiers) && key["key"] is JsonValue k && k.TryGetValue<uint>(out uint vk))
@@ -55,6 +57,7 @@ internal sealed class Preferences
     {
         var root=(JsonObject)original.DeepClone();root["schemaVersion"]=2;root["theme"]=Theme.ToString().ToLowerInvariant();root["language"]=Language;
         root["annotationModifier"]=AnnotationModifier.ToString().ToLowerInvariant();
+        root["disableClearConfirmation"]=DisableClearConfirmation;
         var keys=root["hotkeys"] as JsonObject ?? new JsonObject();root["hotkeys"]=null;
         foreach(var (action,key) in Hotkeys) keys[action.ToString().ToLowerInvariant()]=new JsonObject { ["modifiers"]=key.Modifiers,["key"]=key.Key };
         root["hotkeys"]=keys;

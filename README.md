@@ -19,7 +19,7 @@ Focus your chat/composer and press **Ctrl+Alt+V once**. ScreenIt sequentially pa
 - Markers with structured comments; marker move/edit/delete.
 - Arrows, rectangles, and Undo/Redo for the current screenshot.
 - Multi-screenshot sessions: A, B, C… Z, AA…
-- Paste Session and confirmed Clear Session.
+- Paste Session and Clear Session with an optional confirmation.
 - System/Dark/Light appearance, English/Russian UI, and configurable global shortcuts (0.2.0).
 - Compact, content-sized feedback above the taskbar with soft fades, including confirmation that ScreenIt is running in the background; without sound.
 - Optional per-user **Start with Windows** autostart, off by default, managed from Settings.
@@ -52,7 +52,7 @@ Download **ScreenIt-0.2.1-win-x64-portable.zip** from [Releases](https://github.
 2. To annotate, hold **Ctrl** when releasing the mouse or pressing Space. Click → **A1** → type a comment → **Enter**. Add more markers, arrows, or rectangles.
 3. In annotation mode, **Ctrl+Enter** commits the screenshot and closes the overlay. Repeat for B, C…
 4. Focus the target composer; press **Ctrl+Alt+V** once and release the keys. Images arrive in session order, with editable comments last.
-5. **Ctrl+Alt+X** → confirm Clear for a new session. Cancel, Escape, or closing confirmation preserves your session. Clear resets numbering to A/A1.
+5. **Ctrl+Alt+X** → confirm Clear for a new session. Cancel, Escape, or closing confirmation preserves your session. Clear resets numbering to A/A1. Select **Don't ask again** when confirming Clear to skip future confirmations; the cleared notification remains. To restore confirmation, turn off **Settings → General → Disable session clear warning**.
 
 For a window screenshot, press **W** in capture selection, hover an eligible window and click. W returns to Region; Space still captures the focused monitor. Hold the configured annotation modifier at click to annotate. Window capture uses Windows.Graphics.Capture for the selected HWND, including ordinary title bar/chrome: overlapping windows and ScreenIt highlights are excluded. Unlike region/monitor capture, window pixels are acquired at click, not from the initial frozen desktop. A large or cross-monitor window is fitted into the annotation overlay for editing; its screenshot retains the full physical resolution.
 
@@ -98,7 +98,7 @@ The only runtime network functionality is an explicit **Settings → About → C
 
 Paste Session explicitly transfers data to your selected application through Windows clipboard/input. Further processing depends on that receiver; ScreenIt does not control its network behavior or third-party clipboard managers.
 
-Sessions live in RAM. Appearance, language, global shortcuts, and annotation modifier are saved locally (schema version 2): `%LOCALAPPDATA%/ScreenIt/settings.json`. Older files default the modifier to Ctrl. The optional Start with Windows switch is stored only in the current user's Windows `Run` registry entry, never in `settings.json`. Paste creates temporary PNGs under `%TEMP%/ScreenIt/Clipboard-v1`. They remain after paste, Clear, and exit for asynchronous receivers; owned generations older than seven days are cleaned on a later startup.
+Sessions live in RAM. Appearance, language, global shortcuts, annotation modifier, and the clear-confirmation preference are saved locally (schema version 2): `%LOCALAPPDATA%/ScreenIt/settings.json`. Older files default the modifier to Ctrl. The optional Start with Windows switch is stored only in the current user's Windows `Run` registry entry, never in `settings.json`. Paste creates temporary PNGs under `%TEMP%/ScreenIt/Clipboard-v1`. They remain after paste, Clear, and exit for asynchronous receivers; owned generations older than seven days are cleaned on a later startup.
 
 ## Updates (0.2.0)
 

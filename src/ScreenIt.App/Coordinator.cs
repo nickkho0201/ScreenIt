@@ -119,6 +119,13 @@ internal sealed class Coordinator : IDisposable
         catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { Preferences.AnnotationModifier=old;return false; }
         foreach(var overlay in overlays) overlay.Refresh();return true;
     }
+    internal bool ChangeClearConfirmation(bool disabled)
+    {
+        bool old=Preferences.DisableClearConfirmation;Preferences.DisableClearConfirmation=disabled;
+        try { Preferences.Save(PreferencesPath); }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { Preferences.DisableClearConfirmation=old;return false; }
+        return true;
+    }
     // Optional per-user "Start with Windows" registration; the registry is the source of truth.
     internal AutoStartStatus AutoStartStatus => autoStart.Read();
     internal AutoStartFailure? LastAutoStartFailure { get; private set; }
@@ -305,8 +312,8 @@ internal sealed class Coordinator : IDisposable
         }
         if (ConfirmationOpen || UtilityUi.PromptOpen) { ClearDialog?.BringForward();return; }
         if (Session.Screenshots.Count == 0) { Update("Session is already empty"); return; }
-        if(confirmed || ConfirmClear?.Invoke(Session.Screenshots.Count)==true) { ClearCommittedSession();return; }
-        if(ConfirmClear!=null) return; // Existing verification-only policy seam; runtime always owns a real window.
+        if(confirmed || Preferences.DisableClearConfirmation || ConfirmClear?.Invoke(Session.Screenshots.Count)==true) { ClearCommittedSession();return; }
+        if(ConfirmClear!=null) return; // Verification-only policy seam; runtime uses the owned confirmation window.
         menu.Close();Toasts.Hide();
         ClearSessionDialog? dialog=null;
         try
@@ -326,7 +333,14 @@ internal sealed class Coordinator : IDisposable
         if(!ReferenceEquals(ClearDialog,dialog)) return;
         ClearDialog=null; // The owning window closed: Cancel/Escape/X/owner shutdown all converge here.
         if(disposed) return;
-        if(dialog.Accepted) ClearCommittedSession();else Update();
+        if(dialog.Accepted)
+        {
+            bool saved=!dialog.DoNotAskAgain.IsChecked.GetValueOrDefault() || ChangeClearConfirmation(true);
+            ClearCommittedSession();
+            if(!saved) Toasts.Show(new("Session cleared","Settings could not be saved. Please retry.",true));
+            else if(dialog.DoNotAskAgain.IsChecked==true) Settings?.Refresh();
+        }
+        else Update();
     }
     private void ClearCommittedSession()
     {

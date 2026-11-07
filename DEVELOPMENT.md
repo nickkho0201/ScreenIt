@@ -253,3 +253,11 @@ Tracked автоматического CI/CD/release job нет. Ниже checkl
 - Без destructive reset/clean/checkout, удаления чужой работы, force-push или переписывания опубликованной истории без прямого указания.
 - Без push, tag, GitHub Release, публикации installer/package и изменения существующих release artifacts без прямой команды владельца.
 - Handoff rules для installer/updater/data/security changes — в [AGENTS](AGENTS.md). Завершить проверкой `git diff --check`, `git diff` и `git status --short`; untracked документы тоже необходимо прочитать, они не отображаются обычным `git diff`.
+
+## Unreleased: Clear confirmation and UI checks
+
+`ScreenIt.Verification.exe --settings-motion-only` открывает тестовые Settings с fake registrations и isolated preferences: проверяет запуск/завершение переходов, быстрые смены разделов/переключателей, повторное открытие/закрытие списков, прерывание checkbox fade и закрытие окна во время перехода. Отчёт — `artifacts/settings-motion-verification.json`. Реальный reduced-motion UX и субъективный темп проверяются вручную; системные preferences harness не меняет.
+
+`ScreenIt.Verification.exe --clear-preferences-only` проверяет optional preference, старые файлы/невалидное поле, unknown-field preservation, cancel/accept, повторную очистку, reload, восстановление предупреждения и save failure. Использует isolated settings, synthetic rasters, fake hotkey/autostart registrations; не заменяет clipboard. Открывает тестовые Clear dialogs; Settings рендерится скрыто. Отчёт: `artifacts/clear-preferences-verification.json`, EN/RU Light/Dark previews: `artifacts/clear-preferences/`. Проверки также включены в full suite.
+
+Manual smoke на тестовой копии: поставить флажок и отменить (предупреждение должно остаться); затем подтвердить с флажком, повторить Clear из tray/hotkey и проверить отсутствие окна, cleared toast и A/A1; перезапустить копию; вернуть предупреждение в General. Проверить Space/Tab input для чекбокса диалога и переключателя настроек, EN/RU и обе темы. Пользовательскую работающую копию не завершать автоматически; preferences и RAM session не использовать для этих checks.

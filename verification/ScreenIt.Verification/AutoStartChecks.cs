@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using Microsoft.Win32;
@@ -192,7 +194,7 @@ internal static class AutoStartChecks
             owner.ShowSettings();
             var settings = owner.Settings!;
             settings.SelectPage(0);
-            var toggles = Descendants<ToggleButton>((DependencyObject)settings.Content).ToArray();
+            var toggles = Descendants<ToggleButton>((DependencyObject)settings.Content).Where(t=>AutomationProperties.GetName(t)==L.T("Start with Windows")).ToArray();
             check(toggles.Length == 1 && toggles[0].IsChecked == false && AutomationProperties.GetName(toggles[0]) == L.T("Start with Windows") && AutomationProperties.GetHelpText(toggles[0]) == L.T("Launch ScreenIt automatically when you sign in."), "Settings shows one localized startup switch " + language);
             check(Descendants<TextBlock>((DependencyObject)settings.Content).Any(t => t.Text == L.T("Start with Windows")), "Settings shows the localized startup section " + language);
             toggles[0].ApplyTemplate();
@@ -200,11 +202,11 @@ internal static class AutoStartChecks
 
             fake.Status = new(AutoStartRegistration.Valid, AutoStartApproval.NotPresent, fake.Command);
             settings.SelectPage(0);
-            check(Descendants<ToggleButton>((DependencyObject)settings.Content).Single().IsChecked == true, "Startup switch reflects an enabled registration " + language);
+            check(Descendants<ToggleButton>((DependencyObject)settings.Content).Single(t=>AutomationProperties.GetName(t)==L.T("Start with Windows")).IsChecked == true, "Startup switch reflects an enabled registration " + language);
 
             fake.Status = new(AutoStartRegistration.Valid, AutoStartApproval.Disabled, fake.Command);
             settings.SelectPage(0);
-            var blocked = Descendants<ToggleButton>((DependencyObject)settings.Content).Single();
+            var blocked = Descendants<ToggleButton>((DependencyObject)settings.Content).Single(t=>AutomationProperties.GetName(t)==L.T("Start with Windows"));
             check(blocked.IsChecked == false && blocked.IsEnabled && Descendants<TextBlock>((DependencyObject)settings.Content).Any(t => t.Text == L.T("Windows is currently blocking this startup entry. Enable it in Windows startup apps.")), "Startup switch reflects external Windows blocking " + language);
 
             fake.Status = new(AutoStartRegistration.Valid, AutoStartApproval.Unknown, fake.Command);
@@ -214,22 +216,32 @@ internal static class AutoStartChecks
 
             fake.Status = new(AutoStartRegistration.Unreadable, AutoStartApproval.NotPresent, null);
             settings.SelectPage(0);
-            var unavailable = Descendants<ToggleButton>((DependencyObject)settings.Content).Single();
+            var unavailable = Descendants<ToggleButton>((DependencyObject)settings.Content).Single(t=>AutomationProperties.GetName(t)==L.T("Start with Windows"));
             check(!unavailable.IsEnabled && unavailable.IsChecked == false && Descendants<TextBlock>((DependencyObject)settings.Content).Any(t => t.Text == L.T("The Windows startup setting could not be read.")), "Startup switch is unavailable and explained when unreadable " + language);
+            bool automationRejected=false;
+            try { ((IToggleProvider)UIElementAutomationPeer.CreatePeerForElement(unavailable)!.GetPattern(PatternInterface.Toggle)!).Toggle(); }
+            catch(ElementNotEnabledException) { automationRejected=true; }
+            check(automationRejected && unavailable.IsChecked==false,"Disabled startup switch rejects UI Automation without toggling " + language);
 
             fake.Status = new(AutoStartRegistration.Missing, AutoStartApproval.NotPresent, null);
             settings.SelectPage(0);
-            ToggleButton toggle = Descendants<ToggleButton>((DependencyObject)settings.Content).Single();
+            ToggleButton toggle = Descendants<ToggleButton>((DependencyObject)settings.Content).Single(t=>AutomationProperties.GetName(t)==L.T("Start with Windows"));
             toggle.IsChecked = true; toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             check(fake.Enabled && owner.AutoStartStatus.Enabled, "Settings startup switch click enables autostart " + language);
+            toggle=Descendants<ToggleButton>((DependencyObject)settings.Content).Single(t=>AutomationProperties.GetName(t)==L.T("Start with Windows"));
+            ((IToggleProvider)UIElementAutomationPeer.CreatePeerForElement(toggle)!.GetPattern(PatternInterface.Toggle)!).Toggle();
+            check(!fake.Enabled && !owner.AutoStartStatus.Enabled,"UI Automation startup switch uses the same native-state callback " + language);
 
             fake.EnableFailure = new(AutoStartFailureKind.PathTooLong);
             fake.Enabled = false;
             owner.ShowSettings();
             settings.SelectPage(0);
-            toggle = Descendants<ToggleButton>((DependencyObject)settings.Content).Single();
+            toggle = Descendants<ToggleButton>((DependencyObject)settings.Content).Single(t=>AutomationProperties.GetName(t)==L.T("Start with Windows"));
             toggle.IsChecked = true; toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             check(!fake.Enabled && settings.ValidationError == L.T("The installation path is too long for Windows startup. Move ScreenIt to a shorter folder."), "Settings shows the localized startup failure inline " + language);
+            toggle=Descendants<ToggleButton>((DependencyObject)settings.Content).Single(t=>AutomationProperties.GetName(t)==L.T("Start with Windows"));
+            ((IToggleProvider)UIElementAutomationPeer.CreatePeerForElement(toggle)!.GetPattern(PatternInterface.Toggle)!).Toggle();
+            check(!fake.Enabled && Descendants<ToggleButton>((DependencyObject)settings.Content).Single(t=>AutomationProperties.GetName(t)==L.T("Start with Windows")).IsChecked==false,"UI Automation startup failure rolls back displayed state " + language);
             settings.Close();
         }
         L.Select("en");

@@ -49,9 +49,12 @@ internal static class L
         if(root is Button button)
         { if(button.Content is string label) button.Content=T(label);if(button.ToolTip is ToolTip tip && tip.Content is string hint) { tip.Content=T(hint);AutomationProperties.SetName(button,T(hint)); } }
         if(root is RadioButton radio && radio.Content is string caption) radio.Content=T(caption);
+        if(root is CheckBox checkbox && checkbox.Content is TextBlock checkboxLabel) { checkboxLabel.Text=T(checkboxLabel.Text);AutomationProperties.SetName(checkbox,checkboxLabel.Text); }
         foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) Tree(child);
     }
     private const string Catalog="""
+Don't ask again|Больше не спрашивать
+Disable session clear warning|Отключить предупреждение об удалении сессии
 Drag a region · W — window|Выделите область · W — окно
 Select a window · W — region|Выберите окно · W — область
 Capturing window…|Захват окна…

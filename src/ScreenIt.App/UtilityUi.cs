@@ -10,6 +10,48 @@ internal static class UtilityUi
     public static SolidColorBrush Ink => Appearance.Palette.Text;
     public static SolidColorBrush Muted => Appearance.Palette.Muted;
     public static SolidColorBrush Brush(byte r, byte g, byte b) { var value = new SolidColorBrush(Color.FromRgb(r,g,b)); value.Freeze(); return value; }
+    internal static CheckBox Checkbox(string label,bool value=false)
+    {
+        var checkbox=new CheckBox { Content=new TextBlock { Text=L.T(label),TextWrapping=TextWrapping.Wrap },IsChecked=value,
+            FontSize=13,Foreground=Ink,Background=Appearance.Palette.Editor,BorderBrush=Appearance.Palette.Border,
+            HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Center,
+            Cursor=System.Windows.Input.Cursors.Hand,Margin=new Thickness(0,0,0,18) };
+        AutomationProperties.SetName(checkbox,L.T(label));
+        checkbox.Resources["CheckAccent"]=Accent;
+        checkbox.Template=(ControlTemplate)System.Windows.Markup.XamlReader.Parse("""
+            <ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="CheckBox">
+              <Grid Background="Transparent" MinHeight="28">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <Border x:Name="Box" Width="18" Height="18" CornerRadius="4" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" VerticalAlignment="Center">
+                  <Path x:Name="Tick" Data="M 3,8 L 6,11 L 12,4" Stroke="White" StrokeThickness="2" Opacity="0"/>
+                </Border>
+                <ContentPresenter Grid.Column="1" Margin="9,2,0,2" VerticalAlignment="Center"/>
+              </Grid>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsChecked" Value="True"><Setter TargetName="Box" Property="Background" Value="{DynamicResource CheckAccent}"/><Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource CheckAccent}"/><Setter TargetName="Tick" Property="Opacity" Value="1"/></Trigger>
+                <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource CheckAccent}"/></Trigger>
+                <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource CheckAccent}"/><Setter TargetName="Box" Property="BorderThickness" Value="2"/></Trigger>
+                <Trigger Property="IsPressed" Value="True"><Setter Property="Opacity" Value="0.75"/></Trigger>
+                <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+            """);
+        bool wasChecked=value;
+        void AnimateTick()
+        {
+            bool selected=checkbox.IsChecked==true;checkbox.ApplyTemplate();
+            if(checkbox.IsVisible && checkbox.Template.FindName("Tick",checkbox) is System.Windows.Shapes.Path tick)
+            {
+                double from=tick.HasAnimatedProperties ? tick.Opacity : wasChecked ? 1 : 0;
+                tick.BeginAnimation(UIElement.OpacityProperty,null);
+                if(SystemParameters.ClientAreaAnimation) tick.BeginAnimation(UIElement.OpacityProperty,new System.Windows.Media.Animation.DoubleAnimation(from,selected ? 1 : 0,TimeSpan.FromMilliseconds(110)) { FillBehavior=System.Windows.Media.Animation.FillBehavior.Stop });
+            }
+            wasChecked=selected;
+        }
+        checkbox.Checked+=(_,_)=>AnimateTick();checkbox.Unchecked+=(_,_)=>AnimateTick();
+        checkbox.Unloaded+=(_,_)=> { if(checkbox.Template.FindName("Tick",checkbox) is System.Windows.Shapes.Path tick) tick.BeginAnimation(UIElement.OpacityProperty,null); };
+        return checkbox;
+    }
     public static Button Button(string label, string hint, Action action)
     {
         var border = new FrameworkElementFactory(typeof(Border));
@@ -112,6 +154,8 @@ internal class PromptWindow : Window
         {
             panel.Children.OfType<TextBlock>().First().Foreground=UtilityUi.Ink;
             panel.Children.OfType<TextBlock>().Last().Foreground=UtilityUi.Muted;
+            foreach(var checkbox in panel.Children.OfType<CheckBox>())
+            { checkbox.Foreground=UtilityUi.Ink;checkbox.Background=Appearance.Palette.Editor;checkbox.BorderBrush=Appearance.Palette.Border; }
         }
         CancelButton.Foreground=UtilityUi.Ink;CancelButton.BorderBrush=Appearance.Palette.Border;
         foreach(var button in new[]{AcceptButton,CancelButton})
@@ -146,6 +190,10 @@ internal class PromptWindow : Window
 }
 internal sealed class ClearSessionDialog : PromptWindow
 {
+    internal CheckBox DoNotAskAgain { get; }=UtilityUi.Checkbox("Don't ask again");
     public ClearSessionDialog(int count) : base("Clear current session?",$"{count} {(count==1 ? "screenshot" : "screenshots")} and their comments will be discarded.","Clear",modal:false)
-    { Title="Clear session — ScreenIt"; }
+    {
+        Title="Clear session — ScreenIt";
+        var panel=(StackPanel)Content;panel.Children.Insert(panel.Children.Count-1,DoNotAskAgain);
+    }
 }
