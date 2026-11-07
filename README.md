@@ -18,6 +18,7 @@ Focus your chat/composer and press **Ctrl+Alt+V once**. ScreenIt sequentially pa
 - Region/window/full-monitor capture, multi-monitor and mixed-DPI foundation.
 - Markers with structured comments; marker move/edit/delete.
 - Arrows, rectangles, and Undo/Redo for the current screenshot.
+- Pencil freehand drawing in one color, without comment markers (Unreleased).
 - Multi-screenshot sessions: A, B, C… Z, AA…
 - Paste Session and Clear Session with an optional confirmation.
 - System/Dark/Light appearance, English/Russian UI, and configurable global shortcuts (0.2.0).
@@ -82,6 +83,7 @@ The first three shortcuts are configurable global defaults; the others apply ins
 | Marker | `M` |
 | Arrow | `A` |
 | Rectangle | `R` |
+| Pencil (freehand) | `P` |
 | Edit comment | `E` |
 | Delete selected annotation | `Delete` |
 | Undo | `Ctrl+Z` |
@@ -89,6 +91,8 @@ The first three shortcuts are configurable global defaults; the others apply ins
 | Commit screenshot | `Ctrl+Enter` |
 
 Comment editor: **Enter** saves, **Shift+Enter** adds a newline, **Esc** cancels edit. Save/cancel the current edit before committing. Undo/Redo inside the editor applies to text. Escape cancels the current gesture/edit first; cancelling a screenshot with annotations requires confirmation.
+
+Pencil: select the toolbar button or press **P**, then hold the left mouse button to draw. Each stroke is one annotation: select it to Delete, or use Undo/Redo. Strokes appear in the final image without creating badges or comments.
 
 ## Privacy
 

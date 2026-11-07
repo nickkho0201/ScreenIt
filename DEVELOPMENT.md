@@ -94,6 +94,12 @@ Smoke временно записывает deterministic EN/dark/default или
 
 ## Manual smoke testing
 
+### Pencil (Unreleased)
+
+`ScreenIt.Verification.exe --pencil-only` проверяет модель/immutable snapshots, замкнутые штрихи, границы, hit test, Undo/Redo/Delete, preview/commit/cancel, `P`, toolbar EN/RU × Dark/Light и финальный bitmap на synthetic source. Скрытый overlay не захватывает desktop, не регистрирует global hotkeys, не записывает preferences и не заменяет clipboard; допускается при работающей пользовательской копии. Отчёт — `artifacts/pencil-verification.json`, previews — `artifacts/pencil/`. Те же checks включены в full suite; его общие preconditions сохраняются.
+
+Manual acceptance на тестовой копии: выбрать карандаш кнопкой и `P`, нарисовать несколько пересекающихся/замкнутых штрихов, проверить release за границей crop, Delete и Undo/Redo целого штриха, Escape во время рисования, смену инструмента и потерю focus. Проверить редактирование комментария (буква P вводится в текст), оба actual DPI и fitted window source. Commit → Paste должен содержать штрихи без новых badges/comments; тулбар и selection handles в output отсутствуют. Full production smoke и настоящий receiver требуют закрытой пользовательской копии и стандартных preconditions.
+
 ### Window capture (0.2.0)
 
 Release App: обычный Capture → W → hover/click. W возвращает Region; Space всегда full focused monitor, configured modifier при click/Space открывает Annotation. Window pixels берутся при click через WGC, Region/monitor остаются frozen. Вручную проверить Explorer/browser/IDE, частично перекрытое окно (click по exposed части), Settings PID exclusion, maximized/borderless/accelerated surfaces, current mixed DPI/negative origin и cross-monitor target, A/B/C → Paste. Не обещать protected/HDR/exclusive-fullscreen compatibility без evidence; WGC-defined chrome/rounded corners и системный capture indicator зависят от Windows.

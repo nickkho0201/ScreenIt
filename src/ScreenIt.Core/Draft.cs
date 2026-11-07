@@ -15,7 +15,12 @@ public sealed record Marker(Guid Id, int Number, P Anchor, string Comment, strin
 }
 public sealed record Arrow(Guid Id, P Start, P End) : Annotation(Id);
 public sealed record Box(Guid Id, Bounds Rect) : Annotation(Id);
-public enum Tool { Marker, Arrow, Rectangle }
+public sealed record PencilStroke : Annotation
+{
+    public IReadOnlyList<P> Points { get; }
+    public PencilStroke(Guid id, IEnumerable<P> points) : base(id) => Points = Array.AsReadOnly(points.ToArray());
+}
+public enum Tool { Marker, Arrow, Rectangle, Pencil }
 public enum EditorEnter { Commit, Newline, Blocked }
 public sealed class ScreenshotDraft(int width, int height, string letter)
 {
@@ -50,6 +55,14 @@ public sealed class ScreenshotDraft(int width, int height, string letter)
         var r = Geo.Normalize(a, b, Width, Height);
         if (r.Width < 3 || r.Height < 3) return false;
         Apply([..items, new Box(Guid.NewGuid(), r)]); return true;
+    }
+    public bool AddPencil(IEnumerable<P> points)
+    {
+        var path = points.Select(p => Geo.Clamp(p, Width, Height)).ToArray();
+        double length = 0;
+        for (int i = 1; i < path.Length; i++) length += path[i - 1].Distance(path[i]);
+        if (length < 4) return false;
+        Apply([..items, new PencilStroke(Guid.NewGuid(), path)]); return true;
     }
     public void Move(Guid id, P anchor)
     {
@@ -116,6 +129,7 @@ public static class Geo
         foreach (var a in reverse)
         {
             if (a is Arrow arrow && SegmentDistance(point, arrow.Start, arrow.End) <= 6) return a;
+            if (a is PencilStroke { Points.Count: >= 2 } stroke && Enumerable.Range(1, stroke.Points.Count - 1).Any(i => SegmentDistance(point, stroke.Points[i - 1], stroke.Points[i]) <= 6)) return a;
             if (a is Box box)
             {
                 var r = box.Rect; P[] corners = [new(r.X, r.Y), new(r.X + r.Width, r.Y), new(r.X + r.Width, r.Y + r.Height), new(r.X, r.Y + r.Height)];

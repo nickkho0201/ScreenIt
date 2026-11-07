@@ -109,6 +109,10 @@ Exit|Выход
 Marker|Маркер
 Arrow|Стрелка
 Rectangle|Рамка
+Pencil|Карандаш
+✎ Pencil|✎ Карандаш
+✓ ✎ Pencil|✓ ✎ Карандаш
+Pencil (P)|Карандаш (P)
 ● Marker|● Маркер
 ↗ Arrow|↗ Стрелка
 ▭ Rectangle|▭ Рамка

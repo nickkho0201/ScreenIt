@@ -69,6 +69,7 @@ internal sealed class AnnotationOverlay : Window
     private Guid? editingId;
     private Marker? moving;
     private Glyph? gesture;
+    private readonly List<P> pencilPoints = [];
     private bool dragging, ready;
     public Matrix DeviceTransform => source?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
     public Bounds EditorBounds { get; private set; }
@@ -90,7 +91,7 @@ internal sealed class AnnotationOverlay : Window
         modifierHint.Effect=hintGlow;
         modifierInline=new InlineUIContainer(modifierHint) { BaselineAlignment=BaselineAlignment.Center };
         RenderOptions.SetBitmapScalingMode(surface, BitmapScalingMode.NearestNeighbor);
-        var tools = new StackPanel { Orientation = Orientation.Horizontal };
+        var tools = new WrapPanel { Orientation = Orientation.Horizontal };
         var panel = new StackPanel(); panel.Children.Add(tools); panel.Children.Add(status);
         bar = new Border { Background = Brushes.White, BorderBrush = UtilityUi.Brush(203,213,225), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(5), Child = panel,
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 2, Opacity = .25 } };
@@ -98,6 +99,7 @@ internal sealed class AnnotationOverlay : Window
         toolButtons.Add(Tool.Marker,Add("● Marker","Marker (M)",()=>Switch(Tool.Marker)));
         toolButtons.Add(Tool.Arrow,Add("↗ Arrow","Arrow (A)",()=>Switch(Tool.Arrow)));
         toolButtons.Add(Tool.Rectangle,Add("▭ Rectangle","Rectangle (R)",()=>Switch(Tool.Rectangle)));
+        toolButtons.Add(Tool.Pencil,Add("✎ Pencil","Pencil (P)",()=>Switch(Tool.Pencil)));
         editButton = Add("Edit","Edit comment (E)",EditSelected);
         deleteButton = Add("Delete","Delete selected (Delete)",Delete);
         undoButton = Add("↶","Undo (Ctrl+Z)",()=>History(false)); redoButton = Add("↷","Redo (Ctrl+Y)",()=>History(true));
@@ -178,7 +180,7 @@ internal sealed class AnnotationOverlay : Window
         }
         else if (hit != null) surface.Focus();
         else if (Tool == Tool.Marker) BeginEdit(p);
-        else { down=p; dragging=true; surface.CaptureMouse(); }
+        else { down=p; dragging=true; if (Tool == Tool.Pencil) { pencilPoints.Clear(); pencilPoints.Add(p); } surface.CaptureMouse(); }
         Refresh();
     }
     public void MovePointer(P p)
@@ -189,6 +191,11 @@ internal sealed class AnnotationOverlay : Window
         if (moving != null) gesture = new BadgeGlyph(moving.Id,moving.Label,Geo.Clamp(new(moving.Anchor.X+p.X-down.X,moving.Anchor.Y+p.Y-down.Y),Model.Width,Model.Height));
         else if (Tool == Tool.Arrow) gesture = new ArrowGlyph(Guid.Empty,down,p);
         else if (Tool == Tool.Rectangle) gesture = new BoxGlyph(Guid.Empty,Geo.Normalize(down,p,Model.Width,Model.Height));
+        else if (Tool == Tool.Pencil)
+        {
+            if (pencilPoints[^1].Distance(p) >= 1) pencilPoints.Add(p);
+            gesture = new PencilGlyph(Guid.Empty,pencilPoints.AsReadOnly());
+        }
         Refresh();
     }
     public void EndPointer(P p)
@@ -207,11 +214,17 @@ internal sealed class AnnotationOverlay : Window
         if (moving != null && gesture is BadgeGlyph m && down.Distance(p)>=3) Model.Move(moving.Id,m.Anchor);
         else if (moving == null && Tool == Tool.Arrow) Model.AddArrow(down,p);
         else if (moving == null && Tool == Tool.Rectangle) Model.AddBox(down,p);
-        dragging=false; moving=null; gesture=null; surface.ReleaseMouseCapture(); surface.Focus(); Refresh();
+        else if (moving == null && Tool == Tool.Pencil)
+        {
+            var end = Geo.Clamp(p,Model.Width,Model.Height);
+            if (pencilPoints[^1] != end) pencilPoints.Add(end);
+            Model.AddPencil(pencilPoints);
+        }
+        dragging=false; moving=null; gesture=null; pencilPoints.Clear(); surface.ReleaseMouseCapture(); surface.Focus(); Refresh();
     }
     public void InterruptGesture()
     {
-        RegionSelection.CancelGesture(); dragging=false; moving=null; gesture=null;
+        RegionSelection.CancelGesture(); dragging=false; moving=null; gesture=null; pencilPoints.Clear();
         if (surface.IsMouseCaptured) surface.ReleaseMouseCapture(); if (ready) Refresh();
     }
     public void BeginEdit(P anchor,Guid? id = null)
@@ -287,6 +300,7 @@ internal sealed class AnnotationOverlay : Window
         else if (e.Key==Key.M) Switch(Tool.Marker);
         else if (e.Key==Key.A) Switch(Tool.Arrow);
         else if (e.Key==Key.R) Switch(Tool.Rectangle);
+        else if (e.Key==Key.P) Switch(Tool.Pencil);
         else return;
         e.Handled=true;
     }
@@ -294,7 +308,7 @@ internal sealed class AnnotationOverlay : Window
     private void Message(string message) { status.Text=L.T(message); status.Visibility=Visibility.Visible; LayoutToolbar(); }
     private void LayoutToolbar()
     {
-        var t=DeviceTransform; bar.Measure(new Size(double.PositiveInfinity,double.PositiveInfinity));
+        var t=DeviceTransform; bar.MaxWidth=Math.Max(1,Frame.Monitor.Width/t.M11-16); bar.Measure(new Size(double.PositiveInfinity,double.PositiveInfinity));
         Canvas.SetLeft(bar,Math.Max(8,(Frame.Monitor.Width/t.M11-bar.DesiredSize.Width)/2));
     }
     public void Refresh()
@@ -304,7 +318,8 @@ internal sealed class AnnotationOverlay : Window
         {
             bool active=Tool==tool; button.Background=active ? UtilityUi.Accent : Brushes.Transparent; button.Foreground=active ? Brushes.White : UtilityUi.Ink;
             button.FontWeight=active ? FontWeights.SemiBold : FontWeights.Normal;
-            button.Content=UtilityUi.ShortcutCaption((active ? "✓ " : "")+(tool==Tool.Marker ? "● Marker" : tool==Tool.Arrow ? "↗ Arrow" : "▭ Rectangle"),tool==Tool.Marker ? "M" : tool==Tool.Arrow ? "A" : "R",active);
+            var (caption,key)=tool switch { Tool.Marker => ("● Marker","M"), Tool.Arrow => ("↗ Arrow","A"), Tool.Rectangle => ("▭ Rectangle","R"), _ => ("✎ Pencil","P") };
+            button.Content=UtilityUi.ShortcutCaption((active ? "✓ " : "")+caption,key,active);
         }
         if (Editable)
         {
@@ -385,6 +400,8 @@ internal sealed class AnnotationOverlay : Window
                 }
                 else if (selected is Box b) dc.DrawRectangle(null,pen,new Rect(b.Rect.X-3,b.Rect.Y-3,b.Rect.Width+6,b.Rect.Height+6));
                 else if (selected is Arrow a) { dc.DrawEllipse(UtilityUi.Accent,new Pen(Brushes.White,1.5),new Point(a.Start.X,a.Start.Y),4,4); dc.DrawEllipse(UtilityUi.Accent,new Pen(Brushes.White,1.5),new Point(a.End.X,a.End.Y),4,4); }
+                else if (selected is PencilStroke stroke)
+                    foreach (var p in new[] { stroke.Points[0],stroke.Points[^1] }) dc.DrawEllipse(UtilityUi.Accent,new Pen(Brushes.White,1.5),new Point(p.X,p.Y),4,4);
             }
             if (window.Editable) dc.Pop(); dc.Pop(); dc.Pop(); dc.Pop(); dc.Pop();
         }

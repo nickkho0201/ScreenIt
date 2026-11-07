@@ -8,6 +8,7 @@ internal abstract record Glyph(Guid Id);
 internal sealed record BadgeGlyph(Guid Id, string Label, P Anchor) : Glyph(Id);
 internal sealed record ArrowGlyph(Guid Id, P Start, P End) : Glyph(Id);
 internal sealed record BoxGlyph(Guid Id, Bounds Rect) : Glyph(Id);
+internal sealed record PencilGlyph(Guid Id, IReadOnlyList<P> Points) : Glyph(Id);
 internal static class Painter
 {
     public static Glyph[] Project(IEnumerable<Annotation> annotations) => annotations.Select(a => a switch
@@ -15,6 +16,7 @@ internal static class Painter
         Marker m => (Glyph)new BadgeGlyph(m.Id, m.Label, m.Anchor),
         Arrow arrow => new ArrowGlyph(arrow.Id, arrow.Start, arrow.End),
         Box b => new BoxGlyph(b.Id, b.Rect),
+        PencilStroke stroke => new PencilGlyph(stroke.Id, stroke.Points),
         _ => throw new InvalidOperationException("Unknown annotation")
     }).ToArray();
     private static Point Point(P p) => new(p.X, p.Y);
@@ -33,6 +35,21 @@ internal static class Painter
                 }
             }
             if (g is BoxGlyph b) { dc.DrawRectangle(null, black, Rect(b.Rect)); dc.DrawRectangle(null, colored, Rect(b.Rect)); }
+            if (g is PencilGlyph stroke && stroke.Points.Count >= 2)
+            {
+                var path = new StreamGeometry();
+                using (var context = path.Open())
+                {
+                    context.BeginFigure(Point(stroke.Points[0]), false, false);
+                    for (int i = 1; i < stroke.Points.Count; i++) context.LineTo(Point(stroke.Points[i]), true, false);
+                }
+                path.Freeze();
+                foreach (var pen in new[] { new Pen(Brushes.White, 4.5), new Pen(UtilityUi.Accent, 2.5) })
+                {
+                    pen.StartLineCap = pen.EndLineCap = PenLineCap.Round; pen.LineJoin = PenLineJoin.Round;
+                    dc.DrawGeometry(null, pen, path);
+                }
+            }
         }
         foreach (var m in all.OfType<BadgeGlyph>())
         {

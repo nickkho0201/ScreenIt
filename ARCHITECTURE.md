@@ -101,6 +101,8 @@ Region/monitor используют initial frozen Frame.Image; window полу�
 
 ## Clipboard and file output
 
+Unreleased: `PencilStroke` хранит собственную read-only копию physical-pixel точек; `ScreenshotDraft.AddPencil` ограничивает их границами снимка и добавляет весь штрих одним snapshot-действием. Длина пути менее 4 px игнорируется, включая одиночный click. Overlay накапливает точки жеста с шагом не менее 1 px и сохраняет точную конечную точку при release; прерывание очищает только временный путь. `PencilGlyph` использует общий Painter для preview и output; hit test проверяет сегменты, Delete/Undo/Redo работают со всем штрихом. Штрихи не создают markers/comment bodies и не расходуют marker numbers. Кнопка Pencil / `P` следует существующим editor/gesture guards; toolbar переносит кнопки при нехватке ширины.
+
 Raster pair содержит original crop и annotated frozen bitmap; Core хранит metadata, не WPF pixels. Painter выводит badges, arrows и boxes; comment body передаётся только через CommentFormatter. Формат текста остаётся `Screenshot A` / `A1 — ...` даже при русском UI.
 
 PNG materialization — технический clipboard transport, а не постоянное сохранение сессии. TemporaryImages создаёт GUID generation в `%TEMP%\ScreenIt\Clipboard-v1`, ownership marker/timestamp и `ScreenIt-A.png` и т. п. с `CreateNew`. Root/ancestors проверяются на reparse points. PNGs остаются после Paste, Clear, clipboard replacement и exit: receiver read completion неизвестен.
