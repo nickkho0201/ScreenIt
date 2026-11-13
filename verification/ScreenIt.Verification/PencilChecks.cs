@@ -13,6 +13,7 @@ internal static class PencilChecks
 {
     internal static void Run(Action<bool,string> check)
     {
+        var originalDesign=Appearance.Design;Appearance.ChooseDesign(DesignPreference.Ember);
         var session = new Session(); var draft = session.CreateDraft(800,600);
         check(!draft.AddPencil([]) && !draft.AddPencil([new(10,10),new(10,10)]) && !draft.CanUndo,"Pencil ignores empty/click gestures without history");
         P[] points = [new(100,100),new(200,100),new(200,200),new(100,100)];
@@ -73,7 +74,7 @@ internal static class PencilChecks
                     L.Select(language); Appearance.Select(theme); overlay.ApplyTheme();
                     var button = overlay.ToolbarButtons.Single(b => ((ToolTip)b.ToolTip).Content.Equals(L.T("Pencil (P)")));
                     button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-                    check(overlay.Tool == Tool.Pencil && ((TextBlock)((StackPanel)button.Content).Children[0]).Text.Contains(language == "ru" ? "Карандаш" : "Pencil",StringComparison.Ordinal),"Pencil toolbar action/localization " + language + " " + theme);
+                    check(overlay.Tool == Tool.Pencil && ((TextBlock)((StackPanel)((StackPanel)button.Content).Children[1]).Children[0]).Text.Contains(language == "ru" ? "Карандаш" : "Pencil",StringComparison.Ordinal),"Pencil toolbar action/localization " + language + " " + theme);
                 }
             foreach (var button in overlay.ToolbarButtons)
                 for (FrameworkElement? node = button; node != null; node = node.Parent as FrameworkElement) node.InvalidateMeasure();
@@ -90,7 +91,7 @@ internal static class PencilChecks
             var folder = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../artifacts/pencil")); Directory.CreateDirectory(folder);
             Save(rendered,Path.Combine(folder,"pencil-output.png")); Save(preview,Path.Combine(folder,"pencil-overlay.png"));
         }
-        finally { overlay.ClosingByApp = true; overlay.Close(); L.Select("en"); Appearance.Select(UiTheme.Dark); }
+        finally { overlay.ClosingByApp = true; overlay.Close(); L.Select("en"); Appearance.Select(UiTheme.Dark); Appearance.ChooseDesign(originalDesign); }
     }
     private static void Save(BitmapSource image,string path)
     {

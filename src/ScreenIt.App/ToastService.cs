@@ -87,19 +87,22 @@ internal sealed class ToastWindow : Window
     internal UiTheme AppliedTheme { get; private set; }
     public ToastWindow(ToastMessage message)
     {
-        Message = message; Title = "ScreenIt feedback"; ShowActivated = false; ShowInTaskbar = false; Focusable = false; IsHitTestVisible = false;
+        FontFamily=ConstructDesign.Body;Message = message; Title = "ScreenIt feedback"; ShowActivated = false; ShowInTaskbar = false; Focusable = false; IsHitTestVisible = false;
         WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; AllowsTransparency = true; Background = Brushes.Transparent;
         Height = LayoutHeight; Topmost = true; WindowStartupLocation = WindowStartupLocation.Manual;
         Opacity=0;
         var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var symbol = new TextBlock { Text = message.Warning ? "!" : "✓", FontSize = 16, FontWeight = FontWeights.SemiBold, HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center };
-        grid.Children.Add(new Border { Width=26,Height=26,Margin=new Thickness(0,0,12,0),CornerRadius=new CornerRadius(13),HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Center,Child=symbol });
+        grid.Children.Add(new Border { Width=26,Height=26,Margin=new Thickness(0,0,12,0),CornerRadius=new CornerRadius(UiDesign.IsEmber ? 3 : 13),HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Center,Child=symbol });
         // Upper bound only: surface 380 minus padding/border (34), badge (26) and gap (12).
         var text = new StackPanel { MaxWidth=308, VerticalAlignment=VerticalAlignment.Center }; Grid.SetColumn(text,1); grid.Children.Add(text);
         text.Children.Add(new TextBlock { Text = message.Title, FontSize = 13, FontWeight = FontWeights.SemiBold, TextWrapping=TextWrapping.Wrap, Foreground = UtilityUi.Ink });
         if (message.Detail.Length != 0) text.Children.Add(new TextBlock { Text = message.Detail, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = UtilityUi.Muted, Margin = new Thickness(0,4,0,0) });
-        Content = new Border { Margin = new Thickness(8), MaxWidth=380, MinHeight=68, Padding = new Thickness(16,10,16,10), Background = Brushes.White, CornerRadius = new CornerRadius(15), BorderThickness = new Thickness(1), Child = grid,
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 12, ShadowDepth = 2, Opacity = .18 } };
+        Content = UiDesign.IsEmber
+            ? new NoticeSurface { Margin = new Thickness(8), MaxWidth=380, MinHeight=68, Padding = new Thickness(16,10,16,10), Background = Brushes.White, CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(1), Child = grid,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 12, ShadowDepth = 2, Opacity = .18 } }
+            : new Border { Margin = new Thickness(8), MaxWidth=380, MinHeight=68, Padding = new Thickness(16,10,16,10), Background = Brushes.White, CornerRadius = new CornerRadius(15), BorderThickness = new Thickness(1), Child = grid,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 12, ShadowDepth = 2, Opacity = .18 } };
         ApplyTheme();
         SourceInitialized += (_,_) =>
         {
@@ -112,8 +115,16 @@ internal sealed class ToastWindow : Window
     {
         AppliedTheme=Appearance.Current;
         if(Content is not Border border || border.Child is not Grid grid) return;
-        border.Background=AppliedTheme==UiTheme.Dark ? UtilityUi.Brush(34,35,39) : UtilityUi.Brush(250,250,251);
-        border.BorderBrush=new SolidColorBrush(Color.FromArgb(18,Appearance.Palette.Text.Color.R,Appearance.Palette.Text.Color.G,Appearance.Palette.Text.Color.B));
+        if(UiDesign.IsClassic)
+        {
+            border.Background=AppliedTheme==UiTheme.Dark ? UtilityUi.Brush(34,35,39) : UtilityUi.Brush(250,250,251);
+            border.BorderBrush=new SolidColorBrush(Color.FromArgb(18,Appearance.Palette.Text.Color.R,Appearance.Palette.Text.Color.G,Appearance.Palette.Text.Color.B));
+        }
+        else
+        {
+            border.Background=Appearance.Palette.Surface;
+            border.BorderBrush=Appearance.Palette.Border;
+        }
         var badge=grid.Children.OfType<Border>().Single();var accent=Message.Warning ? Appearance.Palette.Warning : Appearance.Palette.AccentText;
         badge.Background=new SolidColorBrush(Color.FromArgb(26,accent.Color.R,accent.Color.G,accent.Color.B));
         ((TextBlock)badge.Child).Foreground=accent;
@@ -130,6 +141,7 @@ internal sealed class ToastWindow : Window
     internal void FadeOut(Action completed)
     {
         double opacity=Opacity;StopAnimation();Opacity=opacity;IsFadingOut=true;
+        if(!SystemParameters.ClientAreaAnimation) { completed();return; }
         fade=(AnimationClock)new DoubleAnimation(opacity,0,ToastService.FadeOutDuration).CreateClock(true);
         fadeCompleted=(_,_)=>completed();fade.Completed+=fadeCompleted;
         ApplyAnimationClock(OpacityProperty,fade);
@@ -147,6 +159,7 @@ internal sealed class ToastWindow : Window
         // Move hidden HWND to the chosen physical monitor before reading its actual DPI.
         ToastNative.Place(Handle,new(work.X,work.Y,1,1));
         PlaceContent();Show();PlaceContent();placed=true;
+        if(!SystemParameters.ClientAreaAnimation) { Opacity=1;return; }
         fade=(AnimationClock)new DoubleAnimation(0,1,ToastService.FadeInDuration).CreateClock(true);
         Opacity=1;ApplyAnimationClock(OpacityProperty,fade);
     }

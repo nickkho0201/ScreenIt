@@ -15,17 +15,22 @@ internal sealed class AnnotationOverlay : Window
     public bool Editable => owner.Active == this && Model != null;
     public Tool Tool { get; private set; } = Tool.Marker;
     public Guid? Selected { get; private set; }
-    public bool Editing => editorHost.Visibility == Visibility.Visible;
+    public bool Editing => commentEditing;
     public TextBox CommentInput => editor;
     public bool ClosingByApp;
     public readonly TaskCompletionSource Rendered = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Coordinator owner;
     private readonly Surface surface;
+    private MarkerSurface? markerSurface;
+    private Guid? hoveredMarker;
+    private readonly TranslateTransform editorOffset=new();
     private readonly SelectionGlow glow;
-    private static readonly SolidColorBrush AnnotationSelectionAccent=UtilityUi.Brush(160,67,201); // #A043C9, selection UI only.
+    private static SolidColorBrush AnnotationSelectionAccent => UiDesign.IsEmber ? ConstructDesign.Acid : UtilityUi.Brush(160,67,201); // Selection UI only.
     private readonly TextBlock modifierHint=new() { FontSize=12 };
-    private readonly InlineUIContainer modifierInline;
-    private readonly DropShadowEffect hintGlow=new() { ShadowDepth=0,BlurRadius=10,Opacity=0 };
+    private CaptureSelectionBar? captureBar;
+    internal CaptureSelectionBar? CaptureChrome => captureBar;
+    private InlineUIContainer? modifierInline;
+    private DropShadowEffect? hintGlow;
     internal Func<bool> AnnotationHeld { get; set; }
     internal bool ModifierActive { get; private set; }
     internal string ModifierHint => modifierHint.Text;
@@ -34,14 +39,15 @@ internal sealed class AnnotationOverlay : Window
     private static void GlowChanged(DependencyObject source,DependencyPropertyChangedEventArgs e)
     {
         var window=(AnnotationOverlay)source;window.glow?.InvalidateVisual();
-        window.hintGlow.Opacity=.65*(double)window.GetValue(GlowOpacityProperty)*(double)window.GetValue(GlowStrengthProperty);
+        if(window.hintGlow!=null) window.hintGlow.Opacity=.65*(double)window.GetValue(GlowOpacityProperty)*(double)window.GetValue(GlowStrengthProperty);
     }
     internal void UpdateModifierVisual()
     {
         bool active=!AnnotationMode && IsActive && AnnotationHeld();
         if(active==ModifierActive) return;ModifierActive=active;
         surface.InvalidateVisual();
-        modifierHint.Foreground=active ? Appearance.Palette.AccentText : UtilityUi.Muted;
+        captureBar?.Refresh(owner.WindowMode,owner.Preferences.AnnotationModifier,active);
+        if(hintGlow!=null) modifierHint.Foreground=active ? Appearance.Palette.AccentText : UtilityUi.Muted;
         bool animate=SystemParameters.ClientAreaAnimation;
         double current=(double)GetValue(GlowOpacityProperty);
         BeginAnimation(GlowOpacityProperty,null);SetValue(GlowOpacityProperty,active ? 1.0 : 0.0);
@@ -49,18 +55,26 @@ internal sealed class AnnotationOverlay : Window
         if(animate)
         {
             BeginAnimation(GlowOpacityProperty,new DoubleAnimation(current,active ? 1 : 0,TimeSpan.FromMilliseconds(140)) { FillBehavior=FillBehavior.Stop });
-            if(active) BeginAnimation(GlowStrengthProperty,new DoubleAnimation(.55,1,TimeSpan.FromMilliseconds(750)) { AutoReverse=true,RepeatBehavior=RepeatBehavior.Forever,EasingFunction=new SineEase { EasingMode=EasingMode.EaseInOut } });
+
         }
     }
     private readonly Canvas ui = new();
     private readonly TextBlock status = new() { Foreground = UtilityUi.Muted, FontSize = 12, Margin = new Thickness(10,5,10,5), TextWrapping = TextWrapping.Wrap };
     private readonly Border editorHost, bar;
+    private Border? contextDock, doneDock;
+    private Canvas? editorLayer;
+    private CommentEditorLink? editorLink;
+    private bool commentEditing;
+    private AnimationClock? editorFade;
+    private EventHandler? editorFadeCompleted;
     private readonly TextBlock editorTitle = new() { Foreground = UtilityUi.Accent, FontWeight = FontWeights.SemiBold, FontSize = 14 };
     private readonly TextBox editor = new() { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         FontSize = 14, Height = 96, Padding = new Thickness(8), Margin = new Thickness(0,8,0,8), BorderBrush = UtilityUi.Brush(203,213,225), BorderThickness = new Thickness(1) };
     private readonly TextBlock error = new() { Foreground = Brushes.DarkRed, TextWrapping = TextWrapping.Wrap, MaxHeight = 34, FontSize = 12 };
     private readonly List<Button> annotationButtons = [];
     private readonly Dictionary<Tool,Button> toolButtons = [];
+    private StackPanel? toolbarBrand;
+    private WrapPanel? classicTools;
     private readonly Button editButton, deleteButton, undoButton, redoButton;
     private readonly Button doneButton;
     internal UiTheme AppliedTheme { get; private set; }
@@ -83,64 +97,126 @@ internal sealed class AnnotationOverlay : Window
     internal bool ToolHighlighted(Tool tool) => toolButtons[tool].FontWeight == FontWeights.SemiBold;
     public AnnotationOverlay(Coordinator owner, Frame frame)
     {
-        this.owner = owner; Frame = frame; Icon = UtilityUi.WindowIcon();
+        FontFamily=ConstructDesign.Body;this.owner = owner; Frame = frame; Icon = UtilityUi.WindowIcon();
         AnnotationHeld=()=>ModifierDown(owner.Preferences.AnnotationModifier);
         WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; ShowInTaskbar = false; Topmost = true; ShowActivated = false;
         Width = frame.Monitor.Width * 96.0 / frame.Monitor.EffectiveDpi; Height = frame.Monitor.Height * 96.0 / frame.Monitor.EffectiveDpi;
-        var root = new Grid { Background = Brushes.Black }; root.Children.Add(surface = new Surface(this) { Focusable = true });root.Children.Add(glow=new SelectionGlow(this) { IsHitTestVisible=false }); root.Children.Add(ui); Content = root;
-        modifierHint.Effect=hintGlow;
-        modifierInline=new InlineUIContainer(modifierHint) { BaselineAlignment=BaselineAlignment.Center };
+        var root = new Grid { Background = Brushes.Black }; root.Children.Add(surface = new Surface(this) { Focusable = true });
+        if(UiDesign.IsEmber) root.Children.Add(markerSurface=new MarkerSurface(this) { IsHitTestVisible=false });
+        root.Children.Add(glow=new SelectionGlow(this) { IsHitTestVisible=false }); root.Children.Add(ui); Content = root;
         RenderOptions.SetBitmapScalingMode(surface, BitmapScalingMode.NearestNeighbor);
         var tools = new WrapPanel { Orientation = Orientation.Horizontal };
-        var panel = new StackPanel(); panel.Children.Add(tools); panel.Children.Add(status);
-        bar = new Border { Background = Brushes.White, BorderBrush = UtilityUi.Brush(203,213,225), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(5), Child = panel,
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 2, Opacity = .25 } };
+        var panel = new StackPanel(); panel.Children.Add(tools);
         Button Add(string text, string hint, Action action) { var b = UtilityUi.Button(text,hint,action); tools.Children.Add(b); annotationButtons.Add(b); return b; }
-        toolButtons.Add(Tool.Marker,Add("● Marker","Marker (M)",()=>Switch(Tool.Marker)));
-        toolButtons.Add(Tool.Arrow,Add("↗ Arrow","Arrow (A)",()=>Switch(Tool.Arrow)));
-        toolButtons.Add(Tool.Rectangle,Add("▭ Rectangle","Rectangle (R)",()=>Switch(Tool.Rectangle)));
-        toolButtons.Add(Tool.Pencil,Add("✎ Pencil","Pencil (P)",()=>Switch(Tool.Pencil)));
-        editButton = Add("Edit","Edit comment (E)",EditSelected);
-        deleteButton = Add("Delete","Delete selected (Delete)",Delete);
-        undoButton = Add("↶","Undo (Ctrl+Z)",()=>History(false)); redoButton = Add("↷","Redo (Ctrl+Y)",()=>History(true));
-        var done = doneButton = Add("Done","Done (Ctrl+Enter)",()=> { if (!Editing && !dragging) owner.Commit(this); else Message("Save or cancel the comment first."); });
-        done.Background = UtilityUi.Ink; done.Foreground = Brushes.White;
-        ui.Children.Add(bar); Canvas.SetTop(bar,16); bar.SizeChanged += (_,_)=>LayoutToolbar();
-        var editPanel = new StackPanel { Margin = new Thickness(12) };
-        editPanel.Children.Add(editorTitle); editPanel.Children.Add(editor); editPanel.Children.Add(error);
-        editPanel.Children.Add(new TextBlock { Text = "Enter save · Shift+Enter newline · Esc cancel", FontSize = 11, Foreground = UtilityUi.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,6,0,0) });
-        editorHost = new Border { Background = Brushes.White, BorderBrush = UtilityUi.Brush(203,213,225), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Child = editPanel, Visibility = Visibility.Collapsed,
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 2, Opacity = .25 } };
-        ui.Children.Add(editorHost); Panel.SetZIndex(editorHost,2);
+        if(UiDesign.IsEmber)
+        {
+            captureBar=new CaptureSelectionBar(modifierHint,()=>
+            {
+                if(AnnotationMode || owner.WindowAcquiring) return;
+                owner.ToggleWindowMode();Refresh();
+                if(IsVisible) ReturnFocus();
+            });
+            toolbarBrand=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(8,0,16,0),VerticalAlignment=VerticalAlignment.Center };
+            toolbarBrand.Children.Add(new Image { Source=UtilityUi.WindowIcon(),Width=28,Height=28,Margin=new Thickness(0,0,8,0) });
+            toolbarBrand.Children.Add(new TextBlock { Text="ScreenIt",FontWeight=FontWeights.Bold,VerticalAlignment=VerticalAlignment.Center });
+            tools.Children.Add(toolbarBrand);
+            bar = new Border { Background = Brushes.White, BorderBrush = UtilityUi.Brush(203,213,225), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(5), Child = panel,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 6, ShadowDepth = 1, Opacity = .12 } };
+            toolButtons.Add(Tool.Marker,Add("Marker","Marker (M)",()=>Switch(Tool.Marker)));
+            toolButtons.Add(Tool.Pencil,Add("Pencil","Pencil (P)",()=>Switch(Tool.Pencil)));
+            toolButtons.Add(Tool.Arrow,Add("Arrow","Arrow (A)",()=>Switch(Tool.Arrow)));
+            toolButtons.Add(Tool.Rectangle,Add("Rectangle","Rectangle (R)",()=>Switch(Tool.Rectangle)));
+            editButton = Add("Edit","Edit comment (E)",EditSelected);
+            deleteButton = Add("Delete","Delete selected (Delete)",Delete);
+            undoButton = Add("Undo","Undo (Ctrl+Z)",()=>History(false)); redoButton = Add("Redo","Redo (Ctrl+Y)",()=>History(true));
+            Add("×","Cancel screenshot (Esc)",()=> { if(Editing) CancelEdit();else if(dragging) InterruptGesture();else owner.Cancel(); });
+            doneButton=UtilityUi.Button("Done","Done (Ctrl+Enter)",()=> { if (!Editing && !dragging) owner.Commit(this); else { Message("Save or cancel the comment first.");ReturnFocus(); } });
+            annotationButtons.Add(doneButton);doneButton.MinHeight=38;
+            contextDock=new Border { Child=status,Padding=new Thickness(4),CornerRadius=new CornerRadius(4),BorderThickness=new Thickness(1),IsHitTestVisible=false };
+            doneDock=new Border { Child=doneButton,Padding=new Thickness(4),CornerRadius=new CornerRadius(4),BorderThickness=new Thickness(1) };
+            ui.Children.Add(bar);ui.Children.Add(captureBar);ui.Children.Add(contextDock);ui.Children.Add(doneDock);
+            Canvas.SetTop(captureBar,16);
+            Canvas.SetTop(bar,16);bar.SizeChanged += (_,_)=>LayoutToolbar();
+            editorHost=new CommentEditorCard(editorTitle,editor,error);
+            editorLayer=new Canvas { Visibility=Visibility.Collapsed };editorLink=new CommentEditorLink { IsHitTestVisible=false };
+            editorLayer.Children.Add(editorLink);editorLayer.Children.Add(editorHost);
+            ui.Children.Add(editorLayer);Panel.SetZIndex(editorLayer,2);
+        }
+        else
+        {
+            // 0.2.3 overlay chrome: one compact toolbar with the blue accent and the comment card below the marker.
+            classicTools=tools;
+            bar = new Border { Background = Brushes.White, BorderBrush = UtilityUi.Brush(203,213,225), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(5), Child = panel,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 2, Opacity = .25 } };
+            toolButtons.Add(Tool.Marker,Add("● Marker","Marker (M)",()=>Switch(Tool.Marker)));
+            toolButtons.Add(Tool.Arrow,Add("↗ Arrow","Arrow (A)",()=>Switch(Tool.Arrow)));
+            toolButtons.Add(Tool.Rectangle,Add("▭ Rectangle","Rectangle (R)",()=>Switch(Tool.Rectangle)));
+            toolButtons.Add(Tool.Pencil,Add("✎ Pencil","Pencil (P)",()=>Switch(Tool.Pencil)));
+            editButton = Add("Edit","Edit comment (E)",EditSelected);
+            deleteButton = Add("Delete","Delete selected (Delete)",Delete);
+            undoButton = Add("↶","Undo (Ctrl+Z)",()=>History(false)); redoButton = Add("↷","Redo (Ctrl+Y)",()=>History(true));
+            doneButton = Add("Done","Done (Ctrl+Enter)",()=> { if (!Editing && !dragging) owner.Commit(this); else { Message("Save or cancel the comment first.");ReturnFocus(); } });
+            doneButton.Background = UtilityUi.Ink; doneButton.Foreground = Brushes.White;
+            ui.Children.Add(bar); Canvas.SetTop(bar,16); bar.SizeChanged += (_,_)=>LayoutToolbar();
+            var editPanel = new StackPanel { Margin = new Thickness(12) };
+            editPanel.Children.Add(editorTitle); editPanel.Children.Add(editor); editPanel.Children.Add(error);
+            editPanel.Children.Add(new TextBlock { Text = "Enter save · Shift+Enter newline · Esc cancel", FontSize = 11, Foreground = UtilityUi.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,6,0,0) });
+            editorHost = new Border { Background = Brushes.White, BorderBrush = UtilityUi.Brush(203,213,225), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Child = editPanel, Visibility = Visibility.Collapsed,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 2, Opacity = .25 } };
+            ui.Children.Add(editorHost); Panel.SetZIndex(editorHost,2);
+            hintGlow=new DropShadowEffect { ShadowDepth=0,BlurRadius=10,Opacity=0 };
+            modifierHint.Effect=hintGlow;
+            modifierInline=new InlineUIContainer(modifierHint) { BaselineAlignment=BaselineAlignment.Center };
+        }
         SourceInitialized += (_,_)=> { source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)!; source.AddHook(Hook); Native.Place(source.Handle,Frame.Monitor); };
         ContentRendered += (_,_)=> { ready = true; LayoutToolbar(); Rendered.TrySetResult(); };
         Deactivated += (_,_)=> { InterruptGesture();UpdateModifierVisual(); };
         Activated += (_,_)=>UpdateModifierVisual();
         Closing += (_,e)=> { if (!ClosingByApp) { e.Cancel = true; Dispatcher.BeginInvoke(()=>owner.Cancel()); } };
-        Closed += (_,_)=> { BeginAnimation(GlowOpacityProperty,null);BeginAnimation(GlowStrengthProperty,null);if (source != null) { source.RemoveHook(Hook); source.Dispose(); source = null; } editor.Text = ""; Content = null; };
+        Closed += (_,_)=> { StopEditorMotion();markerSurface?.Stop();commentEditing=false;BeginAnimation(GlowOpacityProperty,null);BeginAnimation(GlowStrengthProperty,null);if (source != null) { source.RemoveHook(Hook); source.Dispose(); source = null; } editor.Text = ""; Content = null; };
         PreviewKeyDown += Keys; surface.MouseLeftButtonDown += Down;
         PreviewKeyUp+=(_,_)=>UpdateModifierVisual();
         surface.MouseMove += (_,e)=>MovePointer(InputPoint(e)); surface.MouseLeftButtonUp += (_,e)=>EndPointer(InputPoint(e));
-        surface.LostMouseCapture += (_,_)=>InterruptGesture(); ApplyTheme();
+        surface.LostMouseCapture += (_,_)=>InterruptGesture();surface.MouseLeave+=(_,_)=> { hoveredMarker=null;Refresh(); };ApplyTheme();
     }
     private static bool ModifierDown(AnnotationModifier modifier) => (GetAsyncKeyState(modifier switch { AnnotationModifier.Ctrl=>0x11,AnnotationModifier.Shift=>0x10,_=>0x12 })&0x8000)!=0;
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
     internal void ApplyTheme()
     {
         AppliedTheme=Appearance.Current;
-        bar.Background=editorHost.Background=Appearance.Palette.Surface;
-        bar.BorderBrush=editorHost.BorderBrush=editor.BorderBrush=Appearance.Palette.Border;
-        editor.Background=Appearance.Palette.Editor;editor.Foreground=UtilityUi.Ink;editor.CaretBrush=UtilityUi.Ink;
-        status.Foreground=UtilityUi.Muted;editorTitle.Foreground=Appearance.Palette.AccentText;error.Foreground=Appearance.Palette.Warning;
-        hintGlow.Color=((SolidColorBrush)UtilityUi.Accent).Color;
-        modifierHint.Foreground=ModifierActive ? Appearance.Palette.AccentText : UtilityUi.Muted;
-        foreach(var button in annotationButtons)
+        if(UiDesign.IsEmber)
         {
-            button.Foreground=UtilityUi.Ink;
-            if(button.ToolTip is ToolTip tip) { tip.Background=Appearance.Palette.Surface;tip.Foreground=UtilityUi.Ink;tip.BorderBrush=Appearance.Palette.Border; }
+            toolbarBrand!.Children.OfType<TextBlock>().Single().Foreground=UtilityUi.Ink;
+            bar.Background=editorHost.Background=contextDock!.Background=doneDock!.Background=Appearance.Palette.Surface;
+            contextDock.BorderBrush=doneDock.BorderBrush=Appearance.Palette.Border;
+            bar.BorderBrush=editorHost.BorderBrush=editor.BorderBrush=Appearance.Palette.Border;
+            editor.Background=Appearance.Palette.Editor;editor.Foreground=UtilityUi.Ink;editor.CaretBrush=UtilityUi.Ink;
+            status.Foreground=UtilityUi.Muted;editorTitle.Foreground=Appearance.Palette.AccentText;error.Foreground=Appearance.Palette.Warning;
+            foreach(var button in annotationButtons)
+            {
+                button.Resources["UiFocus"]=ConstructDesign.Focus;button.Foreground=UtilityUi.Ink;
+                if(button.ToolTip is ToolTip tip) { tip.Background=Appearance.Palette.Surface;tip.Foreground=UtilityUi.Ink;tip.BorderBrush=Appearance.Palette.Border; }
+            }
+            undoButton.Content=ConstructDesign.Icon("Undo",UtilityUi.Ink);redoButton.Content=ConstructDesign.Icon("Redo",UtilityUi.Ink);
+            doneButton.Background=UtilityUi.Accent;doneButton.Foreground=ConstructDesign.OnAccent;doneButton.Content=UtilityUi.ShortcutCaption("Done","Ctrl+Enter",true);
+            ((CommentEditorCard)editorHost).ApplyTheme();editorLink!.InvalidateVisual();
         }
-        doneButton.Background=UtilityUi.Accent;doneButton.Foreground=Brushes.White;doneButton.Content=UtilityUi.ShortcutCaption("Done","Ctrl+Enter",true);
-        if(editorHost.Child is StackPanel panel) panel.Children.OfType<TextBlock>().Last().Foreground=UtilityUi.Muted;
+        else
+        {
+            bar.Background=editorHost.Background=Appearance.Palette.Surface;
+            bar.BorderBrush=editorHost.BorderBrush=editor.BorderBrush=Appearance.Palette.Border;
+            editor.Background=Appearance.Palette.Editor;editor.Foreground=UtilityUi.Ink;editor.CaretBrush=UtilityUi.Ink;
+            status.Foreground=UtilityUi.Muted;editorTitle.Foreground=Appearance.Palette.AccentText;error.Foreground=Appearance.Palette.Warning;
+            if(hintGlow!=null) hintGlow.Color=((SolidColorBrush)UtilityUi.Accent).Color;
+            modifierHint.Foreground=ModifierActive ? Appearance.Palette.AccentText : UtilityUi.Muted;
+            foreach(var button in annotationButtons)
+            {
+                button.Resources["UiFocus"]=UtilityUi.Accent;button.Foreground=UtilityUi.Ink;
+                if(button.ToolTip is ToolTip tip) { tip.Background=Appearance.Palette.Surface;tip.Foreground=UtilityUi.Ink;tip.BorderBrush=Appearance.Palette.Border; }
+            }
+            doneButton.Background=UtilityUi.Accent;doneButton.Foreground=Brushes.White;doneButton.Content=UtilityUi.ShortcutCaption("Done","Ctrl+Enter",true);
+            if(editorHost.Child is StackPanel editPanel) editPanel.Children.OfType<TextBlock>().Last().Foreground=UtilityUi.Muted;
+        }
         Refresh();L.Tree(editorHost);
     }
     private IntPtr Hook(IntPtr hwnd,int message,IntPtr wp,IntPtr lp,ref bool handled)
@@ -170,13 +246,15 @@ internal sealed class AnnotationOverlay : Window
         if(!AnnotationMode && owner.WindowMode) { Activate();surface.Focus();_=owner.CaptureWindow(this,AnnotationHeld(),new(p.X+Frame.Monitor.Left,p.Y+Frame.Monitor.Top));return; }
         if (!AnnotationMode) { Activate(); surface.Focus(); owner.SelectMonitor(this); RegionSelection.Begin(p); surface.CaptureMouse(); Refresh(); return; }
         if (!Editable) { owner.ReturnToDraft(); return; }
-        if (p.X<0 || p.Y<0 || p.X>=Model.Width || p.Y>=Model.Height) return;
+        var uiMarker=UiDesign.IsEmber ? HitUiMarker(p) : null;
+        if ((p.X<0 || p.Y<0 || p.X>=Model.Width || p.Y>=Model.Height) && uiMarker==null) return;
         Activate(); if (Editing) { editor.Focus(); Message("Enter saves the comment · Esc cancels this edit"); return; }
-        p = Geo.Clamp(p,Model.Width,Model.Height); var hit = Geo.Hit(Model.Items,p,Model.Width,Model.Height); Selected = hit?.Id;
+        var rawPointer=p;
+        p = Geo.Clamp(p,Model.Width,Model.Height); var hit = (Annotation?)uiMarker ?? Geo.Hit(UiDesign.IsEmber ? Model.Items.Where(a=>a is not Marker) : Model.Items,p,Model.Width,Model.Height); Selected = hit?.Id;
         if (hit is Marker marker)
         {
             if (clickCount>=2) { BeginEdit(marker.Anchor,marker.Id); return; }
-            down=p; moving=marker; dragging=true; surface.CaptureMouse();
+            down=rawPointer; moving=marker; dragging=true; surface.CaptureMouse();
         }
         else if (hit != null) surface.Focus();
         else if (Tool == Tool.Marker) BeginEdit(p);
@@ -187,8 +265,8 @@ internal sealed class AnnotationOverlay : Window
     {
         if(!AnnotationMode && owner.WindowMode) { owner.HoverWindow(new(p.X+Frame.Monitor.Left,p.Y+Frame.Monitor.Top));return; }
         if (!AnnotationMode) { RegionSelection.Move(p,Frame.Monitor.Width,Frame.Monitor.Height); Refresh(); return; }
-        if (!dragging) return; p=Geo.Clamp(p,Model.Width,Model.Height);
-        if (moving != null) gesture = new BadgeGlyph(moving.Id,moving.Label,Geo.Clamp(new(moving.Anchor.X+p.X-down.X,moving.Anchor.Y+p.Y-down.Y),Model.Width,Model.Height));
+        if (!dragging) { if(UiDesign.IsEmber && Editable && !Editing) { var next=HitUiMarker(p)?.Id;if(next!=hoveredMarker) { hoveredMarker=next;Refresh(); } } return; } var rawPointer=p;p=Geo.Clamp(p,Model.Width,Model.Height);
+        if (moving != null) gesture = new BadgeGlyph(moving.Id,moving.Label,Geo.Clamp(new(moving.Anchor.X+rawPointer.X-down.X,moving.Anchor.Y+rawPointer.Y-down.Y),Model.Width,Model.Height));
         else if (Tool == Tool.Arrow) gesture = new ArrowGlyph(Guid.Empty,down,p);
         else if (Tool == Tool.Rectangle) gesture = new BoxGlyph(Guid.Empty,Geo.Normalize(down,p,Model.Width,Model.Height));
         else if (Tool == Tool.Pencil)
@@ -211,6 +289,7 @@ internal sealed class AnnotationOverlay : Window
             return;
         }
         if (!dragging) return; MovePointer(p);
+        Marker? clickedMarker=moving!=null && down.Distance(p)<3 ? moving : null;
         if (moving != null && gesture is BadgeGlyph m && down.Distance(p)>=3) Model.Move(moving.Id,m.Anchor);
         else if (moving == null && Tool == Tool.Arrow) Model.AddArrow(down,p);
         else if (moving == null && Tool == Tool.Rectangle) Model.AddBox(down,p);
@@ -220,7 +299,9 @@ internal sealed class AnnotationOverlay : Window
             if (pencilPoints[^1] != end) pencilPoints.Add(end);
             Model.AddPencil(pencilPoints);
         }
-        dragging=false; moving=null; gesture=null; pencilPoints.Clear(); surface.ReleaseMouseCapture(); surface.Focus(); Refresh();
+        dragging=false; moving=null; gesture=null; pencilPoints.Clear(); surface.ReleaseMouseCapture(); surface.Focus();
+        if(clickedMarker!=null) BeginEdit(clickedMarker.Anchor,clickedMarker.Id);
+        Refresh();
     }
     public void InterruptGesture()
     {
@@ -231,25 +312,85 @@ internal sealed class AnnotationOverlay : Window
     {
         if (!Editable || Editing) return; InterruptGesture(); editingId=id; editingAnchor=Geo.Clamp(anchor,Model.Width,Model.Height);
         var m=id.HasValue ? Model.Items.OfType<Marker>().FirstOrDefault(a=>a.Id==id) : null;
-        editor.Text=m?.Comment ?? ""; error.Text=""; editorTitle.Text=m?.Label ?? Model.Letter+Model.NextMarker;
-        editorHost.Visibility=Visibility.Visible; LayoutEditor(); ReturnFocus(); editor.CaretIndex=editor.Text.Length;
+        editor.Text=m?.Comment ?? ""; error.Text="";error.Visibility=Visibility.Collapsed; editorTitle.Text=m?.Label ?? Model.Letter+Model.NextMarker;
+        commentEditing=true;if(UiDesign.IsEmber) ShowEditorVisuals(); else editorHost.Visibility=Visibility.Visible;LayoutEditor();ReturnFocus();editor.CaretIndex=editor.Text.Length;
         Dispatcher.BeginInvoke(()=> { if (Editing && IsVisible && IsActive) editor.Focus(); },System.Windows.Threading.DispatcherPriority.Input); Refresh();
+    }
+    internal Point MarkerUiAnchor(P anchor)
+    {
+        var t=DeviceTransform;return new Point((Region.X+anchor.X*SourceScale)/t.M11,(Region.Y+anchor.Y*SourceScale)/t.M22);
+    }
+    internal Rect MarkerUiBounds(P anchor,string label)
+    {
+        var t=DeviceTransform;var original=Geo.Badge(anchor,label,Model.Width,Model.Height);
+        var projected=new Rect((Region.X+original.X*SourceScale)/t.M11,(Region.Y+original.Y*SourceScale)/t.M22,original.Width*SourceScale/t.M11,original.Height*SourceScale/t.M22);
+        var sourceRect=new Rect(Region.X/t.M11,Region.Y/t.M22,Model.Width*SourceScale/t.M11,Model.Height*SourceScale/t.M22);
+        return MarkerBadgeUi.Bounds(projected,label,sourceRect,new Size(Frame.Monitor.Width/t.M11,Frame.Monitor.Height/t.M22));
+    }
+    private Marker? HitUiMarker(P point)
+    {
+        var dip=MarkerUiAnchor(point);
+        return Model.Items.OfType<Marker>().Reverse().FirstOrDefault(m=>MarkerUiBounds(m.Anchor,m.Label).Contains(dip) || (MarkerUiAnchor(m.Anchor)-dip).Length<=6);
     }
     private void LayoutEditor()
     {
         var t=DeviceTransform;
-        EditorBounds=Geo.Editor(new(editingAnchor.X*SourceScale+Region.X,editingAnchor.Y*SourceScale+Region.Y),320*t.M11,205*t.M22,Frame.Monitor.Width,Frame.Monitor.Height);
-        Canvas.SetLeft(editorHost,EditorBounds.X/t.M11); Canvas.SetTop(editorHost,EditorBounds.Y/t.M22);
-        editorHost.Width=EditorBounds.Width/t.M11; editorHost.Height=EditorBounds.Height/t.M22;
+        if(!UiDesign.IsEmber)
+        {
+            EditorBounds=Geo.Editor(new(editingAnchor.X*SourceScale+Region.X,editingAnchor.Y*SourceScale+Region.Y),320*t.M11,205*t.M22,Frame.Monitor.Width,Frame.Monitor.Height);
+            Canvas.SetLeft(editorHost,EditorBounds.X/t.M11); Canvas.SetTop(editorHost,EditorBounds.Y/t.M22);
+            editorHost.Width=EditorBounds.Width/t.M11; editorHost.Height=EditorBounds.Height/t.M22;
+            return;
+        }
+        var anchor=MarkerUiAnchor(editingAnchor);
+        var badge=MarkerUiBounds(editingAnchor,editorTitle.Text);
+        var card=CommentEditorPlacement.Place(badge,new Size(Frame.Monitor.Width/t.M11,Frame.Monitor.Height/t.M22));
+        EditorBounds=new Bounds(card.X*t.M11,card.Y*t.M22,card.Width*t.M11,card.Height*t.M22);
+        Canvas.SetLeft(editorHost,card.X);Canvas.SetTop(editorHost,card.Y);editorHost.Width=card.Width;editorHost.Height=card.Height;
+        editorLayer!.Width=editorLink!.Width=Frame.Monitor.Width/t.M11;editorLayer.Height=editorLink.Height=Frame.Monitor.Height/t.M22;
+        Point from,to;
+        if(card.Left>=badge.Right) { from=new Point(badge.Right,badge.Top+badge.Height/2);to=new Point(card.Left,Math.Clamp(from.Y,card.Top+12,card.Bottom-12)); }
+        else if(card.Right<=badge.Left) { from=new Point(badge.Left,badge.Top+badge.Height/2);to=new Point(card.Right,Math.Clamp(from.Y,card.Top+12,card.Bottom-12)); }
+        else { bool below=card.Top>=badge.Bottom;from=new Point(badge.Left+badge.Width/2,below ? badge.Bottom : badge.Top);to=new Point(Math.Clamp(from.X,card.Left+4,card.Right-4),below ? card.Top+4 : card.Bottom-4); }
+        editorLink.Place(from,to,badge);editorLink.Reveal();
     }
     public bool CommitComment()
     {
         if (!Editing) return false;
-        if (string.IsNullOrWhiteSpace(editor.Text)) { error.Text=L.T("Type a comment, or press Esc to cancel."); editor.Focus(); return false; }
+        if (string.IsNullOrWhiteSpace(editor.Text)) { error.Text=L.T("Type a comment, or press Esc to cancel.");error.Visibility=Visibility.Visible; editor.Focus(); return false; }
         if (editingId.HasValue) { Model.Edit(editingId.Value,editor.Text); Selected=editingId; } else Selected=Model.CreateMarker(editingAnchor,editor.Text).Id;
         CloseEditor(); Tool=Tool.Marker; Refresh(); return true;
     }
-    private void CloseEditor() { editorHost.Visibility=Visibility.Collapsed; editor.Text=""; editingId=null; surface.Focus(); }
+    private void StopEditorMotion()
+    {
+        if(editorFade!=null && editorFadeCompleted!=null) editorFade.Completed-=editorFadeCompleted;
+        editorFade?.Controller?.Remove();editorFade=null;editorFadeCompleted=null;
+        editorLayer?.ApplyAnimationClock(OpacityProperty,null);editorOffset.BeginAnimation(TranslateTransform.YProperty,null);editorLink?.Stop();
+    }
+    private void ShowEditorVisuals()
+    {
+        if(editorLayer==null) { editorHost.Visibility=Visibility.Visible;return; }
+        double from=editorLayer.Visibility==Visibility.Visible ? editorLayer.Opacity : 0;
+        StopEditorMotion();editorLayer.Visibility=Visibility.Visible;editorLayer.IsHitTestVisible=true;editorLayer.Opacity=1;
+        editorHost.RenderTransform=editorOffset;editorOffset.Y=0;
+        if(IsVisible && SystemParameters.ClientAreaAnimation)
+        {
+            editorLayer.BeginAnimation(OpacityProperty,new DoubleAnimation(from,1,TimeSpan.FromMilliseconds(140)) { FillBehavior=FillBehavior.Stop,EasingFunction=new QuadraticEase { EasingMode=EasingMode.EaseOut } });
+            UiMotion.Animate(editorOffset,TranslateTransform.YProperty,4,0,140);
+        }
+    }
+    private void CloseEditor()
+    {
+        if(!UiDesign.IsEmber)
+        {
+            commentEditing=false;editingId=null;editorHost.Visibility=Visibility.Collapsed;editor.Text="";surface.Focus();return;
+        }
+        double from=editorLayer!.Opacity;commentEditing=false;editingId=null;StopEditorMotion();editorLayer.IsHitTestVisible=false;surface.Focus();
+        if(!IsVisible || !SystemParameters.ClientAreaAnimation) { editorLayer.Visibility=Visibility.Collapsed;editor.Clear();return; }
+        editorFade=(AnimationClock)new DoubleAnimation(from,0,TimeSpan.FromMilliseconds(100)).CreateClock(true);
+        editorFadeCompleted=(_,_)=> { if(!Editing) { editorLayer.Visibility=Visibility.Collapsed;editor.Clear(); }StopEditorMotion(); };
+        editorFade.Completed+=editorFadeCompleted;editorLayer.ApplyAnimationClock(OpacityProperty,editorFade);
+    }
     public void CancelEdit() { if (!Editing) return; CloseEditor(); Refresh(); }
     public void EditSelected()
     {
@@ -286,7 +427,7 @@ internal sealed class AnnotationOverlay : Window
                 var action=ScreenshotDraft.EnterAction(shift,ctrl);
                 if (action==EditorEnter.Commit) CommitComment();
                 else if (action==EditorEnter.Newline) { int caret=editor.SelectionStart; editor.SelectedText=Environment.NewLine; editor.CaretIndex=caret+Environment.NewLine.Length; }
-                else error.Text=L.T("Save or cancel the comment before finishing the screenshot.");
+                else { error.Text=L.T("Save or cancel the comment before finishing the screenshot.");error.Visibility=Visibility.Visible; }
             }
             else return;
             e.Handled=true; return;
@@ -305,21 +446,51 @@ internal sealed class AnnotationOverlay : Window
         e.Handled=true;
     }
     internal void ShowHint(string message) => Message(message);
-    private void Message(string message) { status.Text=L.T(message); status.Visibility=Visibility.Visible; LayoutToolbar(); }
+    private void Message(string message) { status.Text=L.T(message); status.Visibility=Visibility.Visible;if(contextDock!=null) contextDock.Visibility=Visibility.Visible; LayoutToolbar(); }
     private void LayoutToolbar()
     {
-        var t=DeviceTransform; bar.MaxWidth=Math.Max(1,Frame.Monitor.Width/t.M11-16); bar.Measure(new Size(double.PositiveInfinity,double.PositiveInfinity));
-        Canvas.SetLeft(bar,Math.Max(8,(Frame.Monitor.Width/t.M11-bar.DesiredSize.Width)/2));
+        var t=DeviceTransform;double width=Frame.Monitor.Width/t.M11,height=Frame.Monitor.Height/t.M22;
+        if(!UiDesign.IsEmber)
+        {
+            bar.MaxWidth=Math.Max(1,width-16); classicTools?.InvalidateMeasure(); if(bar.Child is UIElement child) child.InvalidateMeasure(); bar.InvalidateMeasure(); bar.Measure(new Size(double.PositiveInfinity,double.PositiveInfinity));
+            Canvas.SetLeft(bar,Math.Max(8,(width-bar.DesiredSize.Width)/2));
+            return;
+        }
+        toolbarBrand!.Visibility=Editable && width>=1100 ? Visibility.Visible : Visibility.Collapsed;
+        captureBar!.SetAvailableWidth(Math.Max(1,width-32));captureBar.Measure(new Size(captureBar.MaxWidth,double.PositiveInfinity));
+        Canvas.SetLeft(captureBar,Math.Max(8,(width-captureBar.DesiredSize.Width)/2));
+        // Two independent top blocks share a centered row; reserve Done before
+        // measuring the wrapping tools so neither block overlaps the other.
+        doneDock!.Measure(new Size(Math.Max(1,width-32),double.PositiveInfinity));
+        const double gap=12;
+        bar.MaxWidth=Math.Max(1,width-32-doneDock.DesiredSize.Width-gap);
+        bar.Measure(new Size(bar.MaxWidth,double.PositiveInfinity));
+        double left=Math.Max(8,(width-bar.DesiredSize.Width-gap-doneDock.DesiredSize.Width)/2);
+        Canvas.SetLeft(bar,left);
+        Canvas.SetLeft(doneDock,left+bar.DesiredSize.Width+gap);
+        Canvas.SetTop(doneDock,16);
+        contextDock!.MaxWidth=Math.Max(1,width-32);
+        contextDock.Measure(new Size(contextDock.MaxWidth,double.PositiveInfinity));
+        Canvas.SetLeft(contextDock,16);
+        Canvas.SetTop(contextDock,Math.Max(16,height-contextDock.DesiredSize.Height-16));
     }
     public void Refresh()
     {
         foreach (var button in annotationButtons) button.Visibility=Editable ? Visibility.Visible : Visibility.Collapsed;
         foreach (var (tool,button) in toolButtons)
         {
-            bool active=Tool==tool; button.Background=active ? UtilityUi.Accent : Brushes.Transparent; button.Foreground=active ? Brushes.White : UtilityUi.Ink;
+            bool active=Tool==tool; button.Background=active ? UtilityUi.Accent : Brushes.Transparent; button.Foreground=active ? UiDesign.OnAccent : UtilityUi.Ink;
             button.FontWeight=active ? FontWeights.SemiBold : FontWeights.Normal;
-            var (caption,key)=tool switch { Tool.Marker => ("● Marker","M"), Tool.Arrow => ("↗ Arrow","A"), Tool.Rectangle => ("▭ Rectangle","R"), _ => ("✎ Pencil","P") };
-            button.Content=UtilityUi.ShortcutCaption((active ? "✓ " : "")+caption,key,active);
+            if(UiDesign.IsEmber)
+            {
+                var (caption,key)=tool switch { Tool.Marker => ("Marker","M"), Tool.Arrow => ("Arrow","A"), Tool.Rectangle => ("Rectangle","R"), _ => ("Pencil","P") };
+                button.Content=ConstructDesign.ToolCaption(caption,key,active);
+            }
+            else
+            {
+                var (caption,key)=tool switch { Tool.Marker => ("● Marker","M"), Tool.Arrow => ("↗ Arrow","A"), Tool.Rectangle => ("▭ Rectangle","R"), _ => ("✎ Pencil","P") };
+                button.Content=UtilityUi.ShortcutCaption((active ? "✓ " : "")+caption,key,active);
+            }
         }
         if (Editable)
         {
@@ -328,17 +499,35 @@ internal sealed class AnnotationOverlay : Window
             undoButton.IsEnabled=Model.CanUndo && !Editing; redoButton.IsEnabled=Model.CanRedo && !Editing;
         }
         status.Inlines.Clear();
-        if(!AnnotationMode)
+        if(!UiDesign.IsEmber)
         {
-            status.Inlines.Add(new Run(L.T(owner.WindowMode ? "Select a window · W — region" : "Drag a region · W — window")+" · "));
-            modifierHint.Text=string.Format(L.T("{0} — annotations"),owner.Preferences.AnnotationModifier);
-            status.Inlines.Add(modifierInline);
-            status.Inlines.Add(new Run(" · "+L.T("Space full monitor · Esc cancel")));
+            if(!AnnotationMode)
+            {
+                status.Inlines.Add(new Run(L.T(owner.WindowMode ? "Select a window · W — region" : "Drag a region · W — window")+" · "));
+                modifierHint.Text=string.Format(L.T("{0} — annotations"),owner.Preferences.AnnotationModifier);
+                if(modifierInline!=null) status.Inlines.Add(modifierInline);
+                status.Inlines.Add(new Run(" · "+L.T("Space full monitor · Esc cancel")));
+            }
+            else status.Text=Editable ? "" : L.T("Continue on the selected monitor");
+            status.Visibility=!AnnotationMode || !Editable ? Visibility.Visible : Visibility.Collapsed;
+            bar.Visibility=Visibility.Visible;
         }
-        else status.Text=Editable ? "" : L.T("Continue on the selected monitor");
-        status.Visibility=!AnnotationMode || !Editable ? Visibility.Visible : Visibility.Collapsed;
+        else
+        {
+            if(!AnnotationMode)
+            {
+                status.Text=L.T(owner.WindowAcquiring ? "Capturing window…" : owner.WindowMode ? "Click a window to capture" : "Drag to select a region");
+            }
+            else status.Text=L.T(!Editable ? "Continue on the selected monitor" : Editing ? "Type a comment" : Selected.HasValue ? "Annotation selected · Delete to remove" : Tool switch { Tool.Marker=>"Click a point to add a comment",Tool.Pencil=>"Draw directly over the screenshot",Tool.Arrow=>"Drag to draw an arrow",_=>"Drag to draw a rectangle" });
+            status.Visibility=Visibility.Visible;
+            bar.Visibility=doneDock!.Visibility=Editable ? Visibility.Visible : Visibility.Collapsed;
+            captureBar!.Visibility=!AnnotationMode ? Visibility.Visible : Visibility.Collapsed;
+            captureBar.Refresh(owner.WindowMode,owner.Preferences.AnnotationModifier,ModifierActive);
+            contextDock!.Visibility=Visibility.Visible;
+            doneButton.IsEnabled=!Editing && !dragging;
+        }
         UpdateModifierVisual();glow.InvalidateVisual();
-        foreach(var button in annotationButtons) L.Tree(button);LayoutToolbar(); surface.Cursor=Cursors.Cross; surface.InvalidateVisual();
+        foreach(var button in annotationButtons) L.Tree(button);LayoutToolbar(); surface.Cursor=Cursors.Cross; surface.InvalidateVisual();markerSurface?.UpdateInteraction();markerSurface?.InvalidateVisual();
     }
     private void CompleteSelection(PxRect region,bool annotate)
     {
@@ -389,11 +578,11 @@ internal sealed class AnnotationOverlay : Window
             dc.PushTransform(new ScaleTransform(window.SourceScale,window.SourceScale));
             if (window.Editable) dc.PushClip(new RectangleGeometry(new Rect(0,0,window.Model.Width,window.Model.Height)));
             if(window.Editable) dc.DrawImage(window.Crop,new Rect(0,0,window.Model.Width,window.Model.Height));
-            if (window.Editable) Painter.Draw(dc,window.VisibleGlyphs(),window.Model.Width,window.Model.Height);
+            if (window.Editable) Painter.Draw(dc,UiDesign.IsEmber ? window.VisibleGlyphs().Where(g=>g is not BadgeGlyph) : window.VisibleGlyphs(),window.Model.Width,window.Model.Height);
             if (window.Editable && window.Selected.HasValue && window.Model.Items.FirstOrDefault(a=>a.Id==window.Selected) is { } selected)
             {
                 var pen=new Pen(UtilityUi.Accent,1.5);
-                if (selected is Marker m)
+                if (selected is Marker m && !UiDesign.IsEmber)
                 {
                     var b=Geo.Badge(m.Anchor,m.Label,window.Model.Width,window.Model.Height); var rect=new Rect(b.X-3,b.Y-3,b.Width+6,b.Height+6);
                     dc.DrawRoundedRectangle(null,new Pen(Brushes.White,3.5),rect,9,9); dc.DrawRoundedRectangle(null,pen,rect,9,9);
@@ -404,6 +593,30 @@ internal sealed class AnnotationOverlay : Window
                     foreach (var p in new[] { stroke.Points[0],stroke.Points[^1] }) dc.DrawEllipse(UtilityUi.Accent,new Pen(Brushes.White,1.5),new Point(p.X,p.Y),4,4);
             }
             if (window.Editable) dc.Pop(); dc.Pop(); dc.Pop(); dc.Pop(); dc.Pop();
+        }
+    }
+    private sealed class MarkerSurface(AnnotationOverlay window) : FrameworkElement
+    {
+        private static readonly DependencyProperty ProgressProperty=DependencyProperty.Register("Progress",typeof(double),typeof(MarkerSurface),new FrameworkPropertyMetadata(1d,FrameworkPropertyMetadataOptions.AffectsRender));
+        private (Guid? Hover,Guid? Selected,Guid? Moving,Guid? Editing) current,previous;
+        internal void UpdateInteraction()
+        {
+            var next=(window.hoveredMarker,window.Selected,window.dragging ? window.moving?.Id : null,window.Editing ? window.editingId ?? Guid.Empty : (Guid?)null);
+            if(next==current) return;previous=current;current=next;
+            BeginAnimation(ProgressProperty,null);SetValue(ProgressProperty,1d);
+            if(IsVisible && SystemParameters.ClientAreaAnimation)
+                BeginAnimation(ProgressProperty,new DoubleAnimation(0,1,TimeSpan.FromMilliseconds(previous.Selected!=current.Selected ? 120 : 90)) { FillBehavior=FillBehavior.Stop,EasingFunction=new QuadraticEase { EasingMode=EasingMode.EaseOut } });
+        }
+        internal void Stop() => BeginAnimation(ProgressProperty,null);
+        private static double Weight(Guid id,(Guid? Hover,Guid? Selected,Guid? Moving,Guid? Editing) state) => state.Editing==id || state.Moving==id ? 1 : state.Selected==id ? .75 : state.Hover==id ? .5 : 0;
+        protected override void OnRender(DrawingContext dc)
+        {
+            if(!window.Editable) return;double progress=(double)GetValue(ProgressProperty);
+            foreach(var badge in window.VisibleGlyphs().OfType<BadgeGlyph>())
+            {
+                double emphasis=Weight(badge.Id,previous)*(1-progress)+Weight(badge.Id,current)*progress;
+                MarkerBadgeUi.Draw(dc,window.MarkerUiAnchor(badge.Anchor),window.MarkerUiBounds(badge.Anchor,badge.Label),badge.Label,emphasis);
+            }
         }
     }
     // UI-only soft rings, clipped to the outside: no tint or blur touches selected pixels.

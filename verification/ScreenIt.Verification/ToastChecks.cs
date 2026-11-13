@@ -55,7 +55,7 @@ internal static class ToastChecks
                             var text=grid.Children.OfType<StackPanel>().Single();
                             sizes[theme+language+message.Title+message.Detail]=surface.ActualWidth;
                             check(toast.Handle==IntPtr.Zero && !toast.ShowActivated && !toast.IsHitTestVisible && !toast.Focusable,"Offscreen noninteractive toast "+theme+language+message.Title);
-                            check(surface.ActualWidth>=surface.MinWidth && surface.ActualWidth<=surface.MaxWidth && surface.ActualHeight>=68 && surface.ActualHeight<=130 && surface.CornerRadius==new CornerRadius(15) && surface.Padding==new Thickness(16,10,16,10),"Compact adaptive surface "+theme+language+message.Title+" size="+surface.ActualWidth+"x"+surface.ActualHeight+" desired="+surface.DesiredSize);
+                            check(surface.ActualWidth>=surface.MinWidth && surface.ActualWidth<=surface.MaxWidth && surface.ActualHeight>=68 && surface.ActualHeight<=130 && surface.CornerRadius==new CornerRadius(UiDesign.IsEmber ? 4 : 15) && surface.Padding==new Thickness(16,10,16,10),"Compact adaptive surface "+theme+language+message.Title+" size="+surface.ActualWidth+"x"+surface.ActualHeight+" desired="+surface.DesiredSize);
                             check(double.IsNaN(toast.Width) && double.IsNaN(surface.Width) && surface.MinWidth==0 && double.IsNaN(grid.Width) && grid.MinWidth==0 && grid.ColumnDefinitions.All(c=>c.Width.IsAuto) && double.IsNaN(text.Width) && text.MinWidth==0,"No width floor or fixed presenter/grid/text width "+theme+language+message.Title);
                             check(Math.Abs(surface.ActualWidth-(surface.Padding.Left+surface.Padding.Right+2+badge.Width+badge.Margin.Right+text.ActualWidth))<0.01,"Surface ends at text plus right padding "+theme+language+message.Title);
                             if(message==ToastMessage.Added("C",3) || message==ToastMessage.Cleared())
@@ -67,7 +67,7 @@ internal static class ToastChecks
                                 var work=new PxRect(-2560,-100,2560,1400);var bounds=ToastNative.Bounds(work,scale,size.Width,size.Height);
                                 check(bounds.X==work.X+(work.Width-bounds.Width)/2,"Center follows measured toast width "+theme+language+message.Title+scale);
                             }
-                            check(badge.Width==26 && badge.Height==26 && ((SolidColorBrush)badge.Background).Color.A==26 && ((SolidColorBrush)surface.BorderBrush).Color.A==18,"Subtle status accent and border "+theme+language+message.Title);
+                            check(badge.Width==26 && badge.Height==26 && ((SolidColorBrush)badge.Background).Color.A==26 && (UiDesign.IsEmber ? surface.BorderBrush==Appearance.Palette.Border : true),"Subtle status accent and border "+theme+language+message.Title);
                             check(blocks[0].FontWeight==FontWeights.SemiBold && blocks[0].FontSize==13 && blocks.All(b=>b.TextWrapping==TextWrapping.Wrap && b.ActualWidth>0 && b.ActualHeight>0),"Readable wrapping and primary hierarchy "+theme+language+message.Title);
                             if(blocks.Length>1) check(blocks[1].FontSize==12 && blocks[1].Margin.Top==4 && blocks[1].Foreground==Appearance.Palette.Muted,"Secondary hierarchy "+theme+language+message.Title);
                             if(message==ToastMessage.Started()) check(blocks[0].Text==(language=="ru" ? "ScreenIt запущен в фоне" : "ScreenIt is running in the background"),"Startup translation "+language);

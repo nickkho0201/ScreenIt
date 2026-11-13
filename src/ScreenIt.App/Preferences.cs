@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Windows.Input;
 
 internal enum ThemePreference { System, Dark, Light }
+internal enum DesignPreference { Classic, Ember }
 internal enum GlobalAction { Capture = 1, Paste = 2, Clear = 3 }
 internal enum AnnotationModifier { Ctrl, Shift, Alt }
 internal sealed record Hotkey(uint Modifiers, uint Key)
@@ -26,6 +27,7 @@ internal sealed record Hotkey(uint Modifiers, uint Key)
 internal sealed class Preferences
 {
     internal ThemePreference Theme { get; set; }=ThemePreference.System;
+    internal DesignPreference Design { get; set; }=DesignPreference.Classic;
     internal string Language { get; set; }=DefaultLanguage(CultureInfo.CurrentUICulture);
     internal Dictionary<GlobalAction,Hotkey> Hotkeys { get; set; }=Hotkey.Defaults();
     internal AnnotationModifier AnnotationModifier { get; set; }=AnnotationModifier.Ctrl;
@@ -40,6 +42,8 @@ internal sealed class Preferences
             if(!File.Exists(path) || new FileInfo(path).Length>65536) return p;
             p.original=JsonNode.Parse(File.ReadAllText(path),documentOptions:new JsonDocumentOptions { MaxDepth=12 }) as JsonObject ?? new();
             if(p.original["theme"] is JsonValue t && t.TryGetValue<string>(out var theme) && theme is "system" or "dark" or "light") p.Theme=Enum.Parse<ThemePreference>(theme,true);
+            // Missing or unknown design keeps the Classic interface; no destructive migration of older files.
+            if(p.original["design"] is JsonValue d && d.TryGetValue<string>(out var design) && design is "classic" or "ember") p.Design=Enum.Parse<DesignPreference>(design,true);
             if(p.original["language"] is JsonValue l && l.TryGetValue<string>(out var lang)) p.Language=lang is "en" or "ru" ? lang : "en";
             if(p.original["annotationModifier"] is JsonValue a && a.TryGetValue<string>(out var modifier) && modifier is "ctrl" or "shift" or "alt") p.AnnotationModifier=Enum.Parse<AnnotationModifier>(modifier,true);
             if(p.original["disableClearConfirmation"] is JsonValue confirmation && confirmation.TryGetValue<bool>(out var disabled)) p.DisableClearConfirmation=disabled;
@@ -55,7 +59,7 @@ internal sealed class Preferences
     }
     internal void Save(string path)
     {
-        var root=(JsonObject)original.DeepClone();root["schemaVersion"]=2;root["theme"]=Theme.ToString().ToLowerInvariant();root["language"]=Language;
+        var root=(JsonObject)original.DeepClone();root["schemaVersion"]=2;root["theme"]=Theme.ToString().ToLowerInvariant();root["design"]=Design.ToString().ToLowerInvariant();root["language"]=Language;
         root["annotationModifier"]=AnnotationModifier.ToString().ToLowerInvariant();
         root["disableClearConfirmation"]=DisableClearConfirmation;
         var keys=root["hotkeys"] as JsonObject ?? new JsonObject();root["hotkeys"]=null;

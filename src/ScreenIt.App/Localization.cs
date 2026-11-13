@@ -53,8 +53,33 @@ internal static class L
         foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) Tree(child);
     }
     private const string Catalog="""
+Save comment|Сохранить
+New line|Новая строка
+Enter — save · Esc — cancel|Enter — сохранить · Esc — отменить
+Shift+Enter — new line|Shift+Enter — новая строка
+Switch capture mode (W)|Переключить область / окно (W)
+Region|Область
+Window|Окно
+Full monitor|Весь монитор
+Hold to annotate|Удержать для разметки
+Click a window to capture|Щёлкните по окну для снимка
+Drag to select a region|Выделите область мышью
+Undo|Отменить
+Redo|Повторить
+Cancel screenshot (Esc)|Отменить снимок (Esc)
+Type a comment|Введите комментарий
+Annotation selected · Delete to remove|Аннотация выбрана · Delete — удалить
+Click a point to add a comment|Укажите точку для комментария
+Draw directly over the screenshot|Рисуйте поверх снимка
+Drag to draw an arrow|Проведите стрелку к объекту
+Drag to draw a rectangle|Выделите участок рамкой
 Don't ask again|Больше не спрашивать
 Disable session clear warning|Отключить предупреждение об удалении сессии
+Design|Оформление
+Classic|Классический
+Switch design?|Сменить оформление?
+The interface will switch immediately and the choice will be saved. Your screenshot session is not affected.|Интерфейс переключится сразу, выбор сохранится. Снимки и комментарии текущей сессии не изменятся.
+Switch|Сменить
 Drag a region · W — window|Выделите область · W — окно
 Select a window · W — region|Выберите окно · W — область
 Capturing window…|Захват окна…
@@ -94,7 +119,7 @@ Settings|Настройки
 General|Основные
 Hotkeys|Клавиши
 About|О программе
-Appearance|Оформление
+Appearance|Тема
 System|Как в Windows
 Dark|Тёмная
 Light|Светлая

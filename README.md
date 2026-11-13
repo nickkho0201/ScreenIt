@@ -2,7 +2,7 @@ English | [Русский](README.ru.md)
 
 # ScreenIt
 
-**ScreenIt 0.2.3**
+**ScreenIt 0.3.0**
 
 ScreenIt is a local-first Windows screenshot annotation utility designed for quickly showing AI assistants, developers, designers, and teammates exactly what you mean.
 
@@ -24,6 +24,7 @@ Comment text mentions only screenshots with comment markers. Images without mark
 - Multi-screenshot sessions: A, B, C… Z, AA…
 - Paste Session and Clear Session with an optional confirmation.
 - System/Dark/Light appearance, English/Russian UI, and configurable global shortcuts (0.2.0).
+- Classic/Ember design choice (0.3.0): Classic keeps the blue 0.2.3 interface, Ember is the CONSTRUCT design.
 - Compact, content-sized feedback above the taskbar with soft fades, including confirmation that ScreenIt is running in the background; without sound.
 - Optional per-user **Start with Windows** autostart, off by default, managed from Settings.
 - Local-first: no account, cloud, backend, or telemetry.
@@ -32,7 +33,7 @@ Comment text mentions only screenshots with comment markers. Images without mark
 
 ### Installer
 
-1. Download **ScreenIt-Setup-0.2.3.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
+1. Download **ScreenIt-Setup-0.3.0.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
 2. Run the installer.
 3. Start ScreenIt from the Start menu.
 4. ScreenIt runs in the system tray.
@@ -43,7 +44,7 @@ Installation is per-user, without mandatory administrator privileges. **Start wi
 
 ### Portable
 
-Download **ScreenIt-0.2.3-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
+Download **ScreenIt-0.3.0-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
 
 ### Requirements
 
@@ -57,11 +58,11 @@ Download **ScreenIt-0.2.3-win-x64-portable.zip** from [Releases](https://github.
 4. Focus the target composer; press **Ctrl+Alt+V** once and release the keys. Images arrive in session order, with editable comments last.
 5. **Ctrl+Alt+X** → confirm Clear for a new session. Cancel, Escape, or closing confirmation preserves your session. Clear resets numbering to A/A1. Select **Don't ask again** when confirming Clear to skip future confirmations; the cleared notification remains. To restore confirmation, turn off **Settings → General → Disable session clear warning**.
 
-For a window screenshot, press **W** in capture selection, hover an eligible window and click. W returns to Region; Space still captures the focused monitor. Hold the configured annotation modifier at click to annotate. Window capture uses Windows.Graphics.Capture for the selected HWND, including ordinary title bar/chrome: overlapping windows and ScreenIt highlights are excluded. Unlike region/monitor capture, window pixels are acquired at click, not from the initial frozen desktop. A large or cross-monitor window is fitted into the annotation overlay for editing; its screenshot retains the full physical resolution.
+For a window screenshot, press **W** in capture selection (or click the current **Region / Window** mode button), hover an eligible window and click. W returns to Region; Space still captures the focused monitor. Hold the configured annotation modifier at click to annotate. Window capture uses Windows.Graphics.Capture for the selected HWND, including ordinary title bar/chrome: overlapping windows and ScreenIt highlights are excluded. Unlike region/monitor capture, window pixels are acquired at click, not from the initial frozen desktop. A large or cross-monitor window is fitted into the annotation overlay for editing; its screenshot retains the full physical resolution.
 
 Stay in the same target window during Paste Session. Focus changes or errors stop pasting; your ScreenIt session is unchanged. Already pasted items cannot be rolled back, and retry may produce duplicates.
 
-Tray → **Settings** opens General, Hotkeys, and About. General selects **System / Dark / Light** and **English / Русский**; changes apply immediately. New installations default to System and the Windows UI language (Russian or English fallback). Existing Dark/Light preferences are preserved. System follows changes to the Windows app theme. General also has an optional **Start with Windows** switch, off by default, which registers ScreenIt in the current user's Windows startup; if Windows has disabled the entry, Settings says so.
+Tray → **Settings** opens General, Hotkeys, and About. General selects **System / Dark / Light** and **English / Русский**; changes apply immediately. A separate **Design** list selects **Classic** (the blue 0.2.3 interface) or **Ember** (the CONSTRUCT preview). Changing the design shows a confirmation first; only accepting applies and saves it, while Cancel, Escape, closing the prompt, or its safe default keep the previous design. Selecting the current design does nothing. New installations default to System and the Windows UI language (Russian or English fallback). Existing Dark/Light preferences are preserved. System follows changes to the Windows app theme. General also has an optional **Start with Windows** switch, off by default, which registers ScreenIt in the current user's Windows startup; if Windows has disabled the entry, Settings says so.
 
 Hotkeys lets you record a new Capture/Paste/Clear combination using Ctrl, Alt, Shift, or Win plus a letter, digit, F1–F12, Backspace, Delete, Insert, Home, End, PageUp/PageDown, arrow key, or Space. Unavailable or duplicate combinations keep previous bindings active. **Reset defaults** restores the default set atomically. Other overlay shortcuts remain fixed. Tray → **More** contains secondary manual copy commands.
 
@@ -96,6 +97,8 @@ Comment editor: **Enter** saves, **Shift+Enter** adds a newline, **Esc** cancels
 
 Pencil: select the toolbar button or press **P**, then hold the left mouse button to draw. Each stroke is one annotation: select it to Delete, or use Undo/Redo. Strokes appear in the final image without creating badges or comments.
 
+Click an existing marker to edit its comment; drag it to move. Escape closes the edit and keeps the marker selected, so Delete can remove it.
+
 ## Privacy
 
 ScreenIt is local-first. Screenshots/comments remain local. No ScreenIt backend, telemetry, analytics, account, automatic uploads, or background networking.
@@ -104,7 +107,7 @@ The only runtime network functionality is an explicit **Settings → About → C
 
 Paste Session explicitly transfers data to your selected application through Windows clipboard/input. Further processing depends on that receiver; ScreenIt does not control its network behavior or third-party clipboard managers.
 
-Sessions live in RAM. Appearance, language, global shortcuts, annotation modifier, and the clear-confirmation preference are saved locally (schema version 2): `%LOCALAPPDATA%/ScreenIt/settings.json`. Older files default the modifier to Ctrl. The optional Start with Windows switch is stored only in the current user's Windows `Run` registry entry, never in `settings.json`. Paste creates temporary PNGs under `%TEMP%/ScreenIt/Clipboard-v1`. They remain after paste, Clear, and exit for asynchronous receivers; owned generations older than seven days are cleaned on a later startup.
+Sessions live in RAM. Appearance (theme and design), language, global shortcuts, annotation modifier, and the clear-confirmation preference are saved locally (schema version 2): `%LOCALAPPDATA%/ScreenIt/settings.json`. Older files without a design value use Classic; unknown design values also fall back to Classic, and unknown JSON fields are preserved. Older files default the modifier to Ctrl. The optional Start with Windows switch is stored only in the current user's Windows `Run` registry entry, never in `settings.json`. Paste creates temporary PNGs under `%TEMP%/ScreenIt/Clipboard-v1`. They remain after paste, Clear, and exit for asynchronous receivers; owned generations older than seven days are cleaned on a later startup.
 
 ## Updates (0.2.0)
 
@@ -153,3 +156,11 @@ Release tooling: **Inno Setup 7.1.0**, build-time only. See [release build instr
 ## License
 
 [MIT License](LICENSE). Bundled .NET components retain their own licenses and third-party notices.
+
+## CONSTRUCT design (0.3.0)
+
+The CONSTRUCT visual refresh is available as the **Ember** design. **Classic** remains the default and keeps the blue 0.2.3 interface; switch between them in **Settings → General → Design** (with confirmation). The release adds a shared red `S_IT` icon and bundled Commissioner/Unbounded fonts. Ember provides redesigned Settings and compact annotation tools with a separate top-right Done block and bottom context dock. Existing capture/session behavior is preserved; arrows, rectangles, and pencil use Signal Red with a Paper outline in both the live preview and the exported bitmap under Ember, while Classic keeps the 0.2.3 blue/white export. Marker badges use the angular Ink/Signal design under Ember, with an animated connector to the compact comment editor. The connector/editor remain UI-only. See [design rules](DESIGN.md) and [verification instructions](DEVELOPMENT.md#construct-design-preview-unreleased).
+
+The interactive badge uses compact projection-aware geometry; the comment card has a compact editorial header, integrated input and separate keyboard footer. PNG marker appearance is unchanged by this UI refinement.
+
+For a manual return to 0.2.3, see [rollback instructions](installer/ROLLBACK.md). The previous release and checksums remain available; there is no automatic rollback or RAM-session recovery.

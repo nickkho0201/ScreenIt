@@ -97,6 +97,16 @@ internal sealed class Coordinator : IDisposable
         Appearance.Choose(Preferences.Theme);L.Select(Preferences.Language);Update();return true;
     }
     internal HotkeyFailure? LastHotkeyFailure { get; private set; }
+    // Design is applied only after the preference file was written: a failed save keeps both
+    // the in-memory choice and the persisted file on the previous design.
+    internal bool ChangeDesign(DesignPreference design)
+    {
+        if(design==Preferences.Design) return true;
+        var old=Preferences.Design;Preferences.Design=design;
+        try { Preferences.Save(PreferencesPath); }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { Preferences.Design=old;Error("Settings could not be saved. Please retry.");return false; }
+        Appearance.ChooseDesign(design);Update();return true;
+    }
     internal HotkeyRegistration HotkeyBindings => hotkeys;
     internal bool ChangeHotkeys(Dictionary<GlobalAction,Hotkey> proposed)
     {

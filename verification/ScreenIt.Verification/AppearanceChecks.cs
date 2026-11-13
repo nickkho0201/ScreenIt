@@ -31,11 +31,13 @@ internal static class AppearanceChecks
             foreach(var (preference,effective) in new[]{(ThemePreference.Light,UiTheme.Light),(ThemePreference.Dark,UiTheme.Dark),(ThemePreference.System,UiTheme.Light),(ThemePreference.System,UiTheme.Dark)})
             {
                 Appearance.ReadSystem=()=>effective;Appearance.Choose(preference);
-                var done=overlay.ToolbarButtons.Single(b=>((ToolTip)b.ToolTip).Content.Equals("Done (Ctrl+Enter)"));
+                var done=overlay.ToolbarButtons.Single(b=>((ToolTip)b.ToolTip).Content.Equals(L.T("Done (Ctrl+Enter)")));
                 var marker=overlay.ToolbarButtons.First();
                 string state=preference+"/"+effective;
                 check(overlay.AppliedTheme==effective && done.Background==UtilityUi.Accent && done.Background==marker.Background && done.Foreground==marker.Foreground && done.BorderBrush==marker.BorderBrush,"Done shares active Marker accent style "+state);
-                var doneBadge=(Border)((StackPanel)done.Content).Children[1];var markerBadge=(Border)((StackPanel)marker.Content).Children[1];
+                var doneBadge=(Border)((StackPanel)done.Content).Children[1];
+                var markerCaption=UiDesign.IsEmber ? (StackPanel)((StackPanel)marker.Content).Children[1] : (StackPanel)marker.Content;
+                var markerBadge=(Border)markerCaption.Children[1];
                 check(((TextBlock)doneBadge.Child).Text=="Ctrl+Enter" && ((TextBlock)doneBadge.Child).Foreground==((TextBlock)markerBadge.Child).Foreground && ((SolidColorBrush)doneBadge.BorderBrush).Color==((SolidColorBrush)markerBadge.BorderBrush).Color,"Done shortcut badge shares emphasized Marker caption "+state);
                 var triggers=done.Template.Triggers.OfType<Trigger>().ToArray();
                 check(triggers.Where(t=>t.Property==UIElement.IsMouseOverProperty).SelectMany(t=>t.Setters.OfType<Setter>()).Any(s=>s.Property==Control.BorderBrushProperty && s.Value==UtilityUi.Accent),"Done hover retains common accent border "+state);

@@ -1,3 +1,29 @@
+## ScreenIt 0.3.0 — 2026-11-13
+
+### Classic / Ember
+
+- New independent design choice in General. Classic remains the default and keeps the blue 0.2.3 interface; Ember offers the CONSTRUCT refresh. Switching requires confirmation; cancellation leaves the previous design unchanged.
+- Ember includes redesigned Settings, capture guide, compact annotation toolbar with a separate upper Done block, angular badges and a connected comment editor. Export uses Signal Red/Paper for arrows, rectangles and pencil; Classic retains blue/white.
+- Shared red `S_IT` application/tray/installer icon, bundled Commissioner/Unbounded fonts with SIL OFL notices, finite animations and reduced-motion handling.
+- Confirmation/information windows are positioned before their first visible frame. Existing capture, RAM session, clipboard/paste, shortcuts and manual-update contracts remain.
+- Existing preferences load without migration; the optional design field stays in schema 2 and defaults to Classic. Unknown fields are preserved.
+
+Download **ScreenIt-Setup-0.3.0.exe** or **ScreenIt-0.3.0-win-x64-portable.zip**, with **SHA256SUMS.txt**. Windows 11 x64, self-contained, unsigned. Preserve the original 0.2.3 release for [manual rollback](ROLLBACK.md); no automatic rollback or RAM-session recovery.
+
+Physical 150%/200% DPI, High Contrast/reduced-motion system UX and current-release third-party receiver acceptance still require manual review. Automated checks are not receiver acknowledgement.
+
+### Release verification (2026-11-13)
+
+- Release solution build: PASS, zero warnings/errors. Full Verification: PASS 4005 after correcting a version-bound synthetic checksum fixture (the first run failed that fixture, not production delivery).
+- Design selection: PASS 114; notices/first-frame positioning: PASS 545.
+- Self-contained 0.3.0 production smoke: PASS 22 with defaults, PASS 22 with custom shortcuts.
+- Official 0.2.3 portable baseline smoke after testing 0.3.0: PASS 22. Both ZIPs were extracted and every file matched their preserved/published trees (477 / 479 files).
+- Actual official 0.2.3 Preferences loader reads settings saved by 0.3.0 and preserves all JSON fields on Save, including Ember and unknown Unicode data; 0.3.0 reads the result back. Synthetic settings only.
+- Original 0.2.3 installer/ZIP SHA-256 match GitHub asset digests. The original tag/packages remain untouched, with a local preserved baseline.
+- Installer/upgrade/downgrade execution was not performed against the owner's installation; no disposable install account/VM was used. Setup downgrade remains a manual operation; the separately extracted official 0.2.3 portable is the verified fallback. Real receiver/physical input and DPI/accessibility caveats above remain open.
+
+---
+
 ## ScreenIt 0.2.3 — 2026-11-07
 
 ### Draw freely with Pencil

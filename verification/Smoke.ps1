@@ -1,4 +1,4 @@
-param([string]$ExecutablePath, [string]$ReportName = 'smoke.json', [switch]$CustomBindings)
+param([string]$ExecutablePath, [string]$ReportName = 'smoke.json', [switch]$CustomBindings, [switch]$CaptureModeToggle)
 $ErrorActionPreference = 'Stop'
 if (Get-Process ScreenIt.App -ErrorAction SilentlyContinue) { throw 'Exit ScreenIt before running the production smoke test.' }
 if (-not ('ScreenItSmoke' -as [type])) {
@@ -15,6 +15,7 @@ delegate bool Callback(IntPtr hwnd,IntPtr data);
 [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd,StringBuilder text,int size);
 [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
 [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+public static uint WindowProcess(IntPtr hwnd) { GetWindowThreadProcessId(hwnd,out uint pid);return pid; }
 [DllImport("user32.dll")] public static extern IntPtr GetWindowLongPtrW(IntPtr hwnd,int index);
 [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint msg,IntPtr wp,IntPtr lp);
 [DllImport("user32.dll",SetLastError=true)] public static extern bool RegisterHotKey(IntPtr hwnd,int id,uint mods,uint key);
@@ -77,6 +78,7 @@ $clearKey=if($CustomBindings) { 0x45 } else { 0x58 }
 $config=@{schemaVersion=2;theme='dark';language='en';hotkeys=@{capture=@{modifiers=($mods -band 15);key=$captureKey};paste=@{modifiers=($mods -band 15);key=$pasteKey};clear=@{modifiers=($mods -band 15);key=$clearKey}}}
 [IO.File]::WriteAllText($settingsPath,($config | ConvertTo-Json -Depth 5))
 $startupForeground = [ScreenItSmoke]::GetForegroundWindow()
+$startupForegroundProcess = [ScreenItSmoke]::WindowProcess($startupForeground)
 $first = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden -RedirectStandardError (Join-Path $artifacts 'startup-error.txt')
 try {
     $control = [IntPtr]::Zero
@@ -90,7 +92,8 @@ try {
     }
     $startupToast = Wait-SmokeWindow $first.Id 'ScreenIt is running in the background'
     if ([ScreenItSmoke]::VisibleWpf($first.Id).Length -ne 1 -or ([ScreenItSmoke]::GetWindowLongPtrW($startupToast,-20).ToInt64() -band 0x080800A0) -ne 0x080800A0) { throw 'Startup must show only transient noactivate/click-through feedback.' }
-    if ([ScreenItSmoke]::GetForegroundWindow() -ne $startupForeground) { throw 'Startup changed foreground.' }
+    $afterStartupForeground = [ScreenItSmoke]::GetForegroundWindow()
+    if ($afterStartupForeground -ne $startupForeground) { throw ('Startup changed foreground. Before HWND={0} PID={1}; after HWND={2} PID={3}; own PID={4}.' -f $startupForeground,$startupForegroundProcess,$afterStartupForeground,[ScreenItSmoke]::WindowProcess($afterStartupForeground),$first.Id) }
     $checks.Add('Background startup shows one non-interactive localized toast without foreground change')
     if ([ScreenItSmoke]::RegisterHotKey([IntPtr]::Zero,77,$mods,$captureKey)) { [void][ScreenItSmoke]::UnregisterHotKey([IntPtr]::Zero,77); throw 'Expected registered Ctrl+Alt+S.' }
     $checks.Add('Global capture hotkey registered')
@@ -126,6 +129,14 @@ try {
     # Visibility precedes WPF ContentRendered and async capture completion.
     Start-Sleep -Milliseconds 500
     $checks.Add('Production WM_HOTKEY route shows frozen overlays')
+    if ($CaptureModeToggle) {
+        Invoke-SmokeButton $overlays[0] 'Region (W)'
+        $modeWindow = Wait-SmokeWindow $first.Id 'Window (W)'
+        $checks.Add('Real capture mode button switches Region to Window and updates its name')
+        Invoke-SmokeButton $modeWindow 'Window (W)'
+        [void](Wait-SmokeWindow $first.Id 'Region (W)')
+        $checks.Add('Same capture mode button switches Window back to Region')
+    }
     [void][ScreenItSmoke]::SendMessage($overlays[0],0x10,[IntPtr]::Zero,[IntPtr]::Zero)
     for ($i=0; $i -lt 100 -and [ScreenItSmoke]::VisibleWpf($first.Id).Length -ne 0; $i++) { Start-Sleep -Milliseconds 50 }
     if ([ScreenItSmoke]::VisibleWpf($first.Id).Length -ne 0) { throw 'Capture cancel left visible overlays.' }

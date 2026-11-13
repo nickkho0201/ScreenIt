@@ -12,7 +12,9 @@ internal static class DiscoverabilityChecks
     {
         check(coordinator.PrimaryCommands.Select(x=>x.Text).SequenceEqual(new[]{"Capture","Paste Session","Clear Session"}),"Tray primary action names without inline debug shortcut text");
         check(coordinator.PrimaryCommands.Select(x=>x.ShortcutKeyDisplayString).SequenceEqual(new[]{"Ctrl+Alt+S","Ctrl+Alt+V","Ctrl+Alt+X"}) && coordinator.PrimaryCommands.All(x=>x.ShowShortcutKeys),"Native tray right-column S/V/X shortcut display");
-        var expected=new[]{"Marker (M)","Arrow (A)","Rectangle (R)","Pencil (P)","Edit comment (E)","Delete selected (Delete)","Undo (Ctrl+Z)","Redo (Ctrl+Y)","Done (Ctrl+Enter)"};
+        var expected=UiDesign.IsEmber
+            ? new[]{"Marker (M)","Pencil (P)","Arrow (A)","Rectangle (R)","Edit comment (E)","Delete selected (Delete)","Undo (Ctrl+Z)","Redo (Ctrl+Y)","Cancel screenshot (Esc)","Done (Ctrl+Enter)"}
+            : new[]{"Marker (M)","Arrow (A)","Rectangle (R)","Pencil (P)","Edit comment (E)","Delete selected (Delete)","Undo (Ctrl+Z)","Redo (Ctrl+Y)","Done (Ctrl+Enter)"};
         foreach(var theme in new[]{UiTheme.Dark,UiTheme.Light})
         {
             Appearance.Select(theme);
@@ -26,8 +28,10 @@ internal static class DiscoverabilityChecks
             foreach(var (hint,key) in new[]{("Marker (M)","M"),("Arrow (A)","A"),("Rectangle (R)","R"),("Pencil (P)","P"),("Done (Ctrl+Enter)","Ctrl+Enter")})
             {
                 var button=overlay.ToolbarButtons.Single(b=>((ToolTip)b.ToolTip).Content.Equals(hint));
-                var chip=(Border)((StackPanel)button.Content).Children[1];var text=(TextBlock)chip.Child;
-                check(text.Text==key && text.FontWeight==FontWeights.Normal && chip.Opacity==1,"Visible secondary shortcut chip "+key+" "+theme);
+                var caption=(StackPanel)button.Content;
+                if(UiDesign.IsEmber && hint!="Done (Ctrl+Enter)") caption=(StackPanel)caption.Children[1];
+                var chip=(Border)caption.Children[1];var text=(TextBlock)chip.Child;
+                check(text.Text==key && text.FontWeight==(UiDesign.IsEmber ? FontWeights.SemiBold : FontWeights.Normal) && chip.Opacity==1,"Visible secondary shortcut chip "+key+" "+theme);
                 var background=(SolidColorBrush)(button.Background==Brushes.Transparent ? Appearance.Palette.Surface : button.Background);
                 check(Contrast(((SolidColorBrush)text.Foreground).Color,background.Color)>=4.5,"Shortcut text contrast "+key+" "+theme);
             }

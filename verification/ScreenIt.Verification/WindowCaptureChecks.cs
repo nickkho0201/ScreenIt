@@ -37,6 +37,7 @@ internal static class WindowCaptureChecks
     }
     internal static async Task Run(Action<bool,string> check)
     {
+        var originalDesign=Appearance.Design;Appearance.ChooseDesign(DesignPreference.Ember);
         var bounds=new PxRect(-400,120,600,400);
         check(WindowTargets.Eligible(12,true,false,false,false,false,bounds,99),"Normal top-level metadata eligible with negative origin");
         check(!WindowTargets.Eligible(99,true,false,false,false,false,bounds,99),"Own process excluded by identity");
@@ -116,6 +117,7 @@ internal static class WindowCaptureChecks
                         await Dispatcher.Yield(DispatcherPriority.Render);var root=(FrameworkElement)overlay.Content;var t=overlay.DeviceTransform;
                         var preview=new RenderTargetBitmap((int)(root.ActualWidth*t.M11),(int)(root.ActualHeight*t.M22),96*t.M11,96*t.M22,PixelFormats.Pbgra32);preview.Render(root);Save(preview,Path.Combine(folder,$"hint-{theme}-{lang}-{windowMode}.png"));
                         check(overlay.ModifierHint.Contains(owner.Preferences.AnnotationModifier.ToString()),"Region/window hint keeps configured modifier "+theme+lang+windowMode);
+                        check(overlay.CaptureChrome!.WindowMode==windowMode && overlay.CaptureChrome!.Visibility==Visibility.Visible && overlay.CaptureChrome!.ModeButton.IsHitTestVisible,"Capture chrome follows actual W mode with one mode button "+theme+lang+windowMode);
                     }
                 }
                 Press(overlay,Key.W);check(!owner.WindowMode,"W returns to Region mode");Press(overlay,Key.W);Press(overlay,Key.Escape);check(owner.OverlayCount==0 && !owner.WindowMode,"Esc cancels window selection and removes scoped events");
@@ -143,6 +145,7 @@ internal static class WindowCaptureChecks
         }
         finally
         {
+            Appearance.ChooseDesign(originalDesign);
             if(hwnd!=0) SendMessage(hwnd,0x10,0,0);if(cover!=0) SendMessage(cover,0x10,0,0);
             if(!process.HasExited) { if(!process.WaitForExit(3000)) process.Kill(); } // Only this owned fixture process.
             if(File.Exists(ready)) File.Delete(ready);

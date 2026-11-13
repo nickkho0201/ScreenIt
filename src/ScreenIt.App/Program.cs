@@ -10,7 +10,7 @@ internal static class Program
         try
         {
             var preferences=Preferences.Load(Appearance.SettingsPath);
-            L.Select(preferences.Language);Appearance.Choose(preferences.Theme);
+            L.Select(preferences.Language);Appearance.ChooseDesign(preferences.Design);Appearance.Choose(preferences.Theme);
             var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             using var coordinator = new Coordinator(preferences:preferences);
             application.Startup += (_,_) => coordinator.NotifyStarted();

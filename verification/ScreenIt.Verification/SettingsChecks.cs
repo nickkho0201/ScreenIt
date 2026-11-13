@@ -66,18 +66,18 @@ internal static class SettingsChecks
             nativeHost.Close();
             // Semantic numeric ordering, no prereleases/downgrades, strict URL/asset identity.
             check(GithubUpdateSource.StableVersion("v0.1.10")>GithubUpdateSource.StableVersion("v0.1.2") && GithubUpdateSource.StableVersion("v0.1.2-beta")==null,"Numeric stable semantic version comparison");
-            foreach(var v in new[]{"0.1.0","0.1.1","0.1.2","0.2.0","0.2.1","0.2.2","0.2.3"}) check(GithubUpdateSource.Parse(Release(v))==null,"No downgrade or same-version update "+v);
-            check(GithubUpdateSource.Parse(Release("0.2.4",draft:true))==null && GithubUpdateSource.Parse(Release("0.2.4",pre:true))==null,"Draft/prerelease excluded");
-            foreach(var malformed in new[]{"{}",Release("bad"),Release("0.2.4").Replace("SHA256SUMS.txt","missing.txt"),Release("0.2.4").Replace("https://github.com","http://github.com")})
+            foreach(var v in new[]{"0.1.0","0.1.1","0.1.2","0.2.0","0.2.1","0.2.2","0.2.3","0.3.0"}) check(GithubUpdateSource.Parse(Release(v))==null,"No downgrade or same-version update "+v);
+            check(GithubUpdateSource.Parse(Release("0.3.1",draft:true))==null && GithubUpdateSource.Parse(Release("0.3.1",pre:true))==null,"Draft/prerelease excluded");
+            foreach(var malformed in new[]{"{}",Release("bad"),Release("0.3.1").Replace("SHA256SUMS.txt","missing.txt"),Release("0.3.1").Replace("https://github.com","http://github.com")})
             { bool failed=false;try { GithubUpdateSource.Parse(malformed); }catch(Exception) { failed=true; }check(failed,"Malformed/missing/untrusted release rejected"); }
             check(!GithubUpdateSource.Allowed(new Uri("https://evil.example/a"),true) && GithubUpdateSource.Allowed(new Uri("https://release-assets.githubusercontent.com/a"),true),"Download redirect allowlist");
-            var release=GithubUpdateSource.Parse(Release("0.2.4"))!;check(release.Version==new Version(0,2,4),"New stable release recognized");
+            var release=GithubUpdateSource.Parse(Release("0.3.1"))!;check(release.Version==new Version(0,3,1),"New stable release recognized");
             var downloads=new SyntheticDownloads();string prepared=await new UpdateTransfer(downloads).Prepare(release,CancellationToken.None);
-            check(File.Exists(prepared) && downloads.Calls==2 && Path.GetFileName(prepared)=="ScreenIt-Setup-0.2.4.exe","Synthetic updater prepares both assets and verifies hash without executing");
+            check(File.Exists(prepared) && downloads.Calls==2 && Path.GetFileName(prepared)=="ScreenIt-Setup-0.3.1.exe","Synthetic updater prepares both assets and verifies hash without executing");
             string generation=Path.GetDirectoryName(prepared)!;foreach(var f in Directory.GetFiles(generation)) File.Delete(f);Directory.Delete(generation);
             foreach(var failure in new[]{1,2,3})
             { downloads.Fail=failure;bool rejected=false;try { await new UpdateTransfer(downloads).Prepare(release,CancellationToken.None); }catch(Exception) { rejected=true; }check(rejected,"Failed download/hash never yields launchable updater result "+failure); }
-            var fake=new FakeUpdates();string installer=Path.Combine(folder,"ScreenIt-Setup-0.2.4.exe"),sums=Path.Combine(folder,"SHA256SUMS.txt");File.WriteAllBytes(installer,[1,2,3,4]);string hash=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(installer)));
+            var fake=new FakeUpdates();string installer=Path.Combine(folder,"ScreenIt-Setup-0.3.1.exe"),sums=Path.Combine(folder,"SHA256SUMS.txt");File.WriteAllBytes(installer,[1,2,3,4]);string hash=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(installer)));
             File.WriteAllText(sums,hash+"  "+Path.GetFileName(installer)+"\n");await UpdateTransfer.Verify(installer,sums);check(true,"Exact installer SHA256 verified");
             foreach(var text in new[]{"",new string('0',64)+"  "+Path.GetFileName(installer),hash+"  "+Path.GetFileName(installer)+"\n"+hash+"  "+Path.GetFileName(installer)})
             { File.WriteAllText(sums,text);bool failed=false;try { await UpdateTransfer.Verify(installer,sums); }catch(InvalidDataException) { failed=true; }check(failed,"Missing/bad/ambiguous SHA256 rejects installer"); }
@@ -131,7 +131,7 @@ internal static class SettingsChecks
             c.ShowSettings();foreach(var (lang,theme,page,name) in new[]{("ru",ThemePreference.Dark,0,"general-dark-ru"),("en",ThemePreference.Light,0,"general-light-en"),("ru",ThemePreference.Dark,1,"hotkeys-dark-ru"),("en",ThemePreference.Dark,1,"hotkeys-dark-en"),("ru",ThemePreference.Light,1,"hotkeys-light-ru"),("en",ThemePreference.Light,1,"hotkeys-light-en"),("ru",ThemePreference.Dark,2,"about")})
             { c.Preferences.Language=lang;c.Preferences.Theme=theme;L.Select(lang);Appearance.Choose(theme);c.Settings!.SelectPage(page);await Dispatcher.Yield(DispatcherPriority.Render);await Task.Delay(180);SavePreview(c.Settings,name);check(c.Settings.AppliedTheme==Appearance.Current,"Settings palette preview "+name);
                 var root=(DependencyObject)c.Settings.Content;var scroller=Descendants<ScrollViewer>(root).Single();var title=Descendants<TextBlock>(scroller).First();
-                check(scroller.VerticalContentAlignment==VerticalAlignment.Top && title.TranslatePoint(new Point(),(FrameworkElement)root).Y<2,"Compact top-aligned content "+name);
+                check(scroller.VerticalContentAlignment==VerticalAlignment.Top && title.TranslatePoint(new Point(),scroller).Y<2,"Compact top-aligned content "+name);
                 check(Buttons(root).All(button=>button.Height==42 && button.Background!=Brushes.Transparent && button.BorderBrush!=Brushes.Transparent),"Settings actions have consistent button surface "+name);
                 check(((Grid)root).RowDefinitions.Count==0 && Grid.GetColumn(scroller)==1,"No shared header/spacer row above Settings content "+name);
                 check(Buttons(root).All(button=>button.Cursor==System.Windows.Input.Cursors.Hand && button.HorizontalContentAlignment==HorizontalAlignment.Center && button.VerticalContentAlignment==VerticalAlignment.Center),"Settings buttons centered with Hand cursor "+name);
@@ -141,19 +141,22 @@ internal static class SettingsChecks
                 {
                     check(Descendants<TextBlock>(root).Any(text=>text.Text==L.T("Use Ctrl, Alt, Shift or Win with a letter, number, F1–F12 or navigation key.")),"Expanded hotkey description localized");
                     check(scroller.ScrollableHeight<.5 && scroller.ComputedVerticalScrollBarVisibility!=Visibility.Visible,"Hotkeys default size fits without scrollbar "+name);
-                    c.Settings.Height=c.Settings.MinHeight;await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);scroller.UpdateLayout();
-                    check(scroller.ScrollableHeight>0 && scroller.ComputedVerticalScrollBarVisibility==Visibility.Visible,"Reduced Settings height retains scrolling fallback "+name);
+                    c.Settings.Height=c.Settings.MinHeight;
+                    // EN copy can now fit at minimum height. Constrain the actual viewport
+                    // to exercise the fallback scrollbar regardless of translated text length.
+                    scroller.MaxHeight=300;await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);scroller.UpdateLayout();
+                    check(scroller.ScrollableHeight>0 && scroller.ComputedVerticalScrollBarVisibility==Visibility.Visible,"Constrained Settings viewport retains scrolling fallback "+name);
                     var vertical=(System.Windows.Controls.Primitives.ScrollBar)scroller.Template.FindName("PART_VerticalScrollBar",scroller);
                     check(vertical.Width==10 && vertical.ActualWidth<=10.5 && ReferenceEquals(vertical.Style,scroller.Resources[typeof(System.Windows.Controls.Primitives.ScrollBar)]),"Fallback scrollbar uses compact ScreenIt style "+name);
                     SavePreview(c.Settings,name+"-compact");
-                    c.Settings.Height=620;await Dispatcher.Yield(DispatcherPriority.Render);
+                    scroller.MaxHeight=double.PositiveInfinity;c.Settings.Height=660;await Dispatcher.Yield(DispatcherPriority.Render);
                 }
-                if(page==0) { var choices=Descendants<ComboBox>(root).ToArray();check(choices.Length==2 && choices[0].Items.Count==3 && choices[1].Items.Count==2,"Theme/language dropdown options "+name);check(choices[1].Items.Cast<ComboBoxItem>().Any(item=>Equals(item.Content,"Русский")),"Russian language name is intact Unicode "+name);choices[0].IsDropDownOpen=true;await Dispatcher.Yield(DispatcherPriority.Render);check(choices[0].IsDropDownOpen,"Themed dropdown opens "+name);choices[0].IsDropDownOpen=false; }
+                if(page==0) { var choices=Descendants<ComboBox>(root).ToArray();check(choices.Length==3 && choices[0].Items.Count==3 && choices[1].Items.Count==2 && choices[2].Items.Count==2,"Theme/design/language dropdown options "+name);check(choices[2].Items.Cast<ComboBoxItem>().Any(item=>Equals(item.Content,"Русский")),"Russian language name is intact Unicode "+name);choices[0].IsDropDownOpen=true;await Dispatcher.Yield(DispatcherPriority.Render);check(choices[0].IsDropDownOpen,"Themed dropdown opens "+name);choices[0].IsDropDownOpen=false; }
  }
             c.Preferences.Language="en";L.Select("en");c.Settings!.SelectPage(0);
             var dropdowns=Descendants<ComboBox>((DependencyObject)c.Settings.Content).ToArray();dropdowns[0].SelectedIndex=2;
             check(c.Preferences.Theme==ThemePreference.Light && Preferences.Load(path).Theme==ThemePreference.Light,"Theme dropdown live selection persists");
-            dropdowns=Descendants<ComboBox>((DependencyObject)c.Settings.Content).ToArray();dropdowns[1].SelectedIndex=1;
+            dropdowns=Descendants<ComboBox>((DependencyObject)c.Settings.Content).ToArray();dropdowns[2].SelectedIndex=1;
             check(c.Preferences.Language=="ru" && Preferences.Load(path).Language=="ru","Language dropdown live selection persists");
             c.Settings!.Close();L.Select("en");Appearance.Choose(ThemePreference.Dark);
             c.ShowSettings();foreach(var monitor in Native.Monitors())
@@ -180,7 +183,7 @@ internal static class SettingsChecks
         public Task Download(Uri uri,string path,long limit,CancellationToken token,IProgress<DownloadProgress>? progress=null)
         {
             Calls++;if(Fail==1) throw new IOException("Synthetic download failure");
-            if(Path.GetFileName(path)=="SHA256SUMS.txt") File.WriteAllText(path,(Fail==3 ? new string('0',64) : Convert.ToHexString(SHA256.HashData(new byte[]{1,2,3,4})))+"  ScreenIt-Setup-0.2.4.exe\n");
+            if(Path.GetFileName(path)=="SHA256SUMS.txt") File.WriteAllText(path,(Fail==3 ? new string('0',64) : Convert.ToHexString(SHA256.HashData(new byte[]{1,2,3,4})))+"  ScreenIt-Setup-0.3.1.exe\n");
             else { if(Fail==2) throw new IOException("Synthetic installer download failure");File.WriteAllBytes(path,[1,2,3,4]); }
             return Task.CompletedTask;
         }

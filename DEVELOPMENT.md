@@ -1,6 +1,6 @@
 # Development
 
-Практический workflow текущего ScreenIt `0.2.3`. Начните с [README](README.md) и [AGENTS](AGENTS.md); runtime flow и ограничения описаны в [ARCHITECTURE](ARCHITECTURE.md), история — в [CHANGELOG](CHANGELOG.md).
+Практический workflow текущего ScreenIt `0.3.0`. Начните с [README](README.md) и [AGENTS](AGENTS.md); runtime flow и ограничения описаны в [ARCHITECTURE](ARCHITECTURE.md), история — в [CHANGELOG](CHANGELOG.md).
 
 ## Environment
 
@@ -65,8 +65,8 @@ dotnet run --project src/ScreenIt.App/ScreenIt.App.csproj -c Release --no-build
 - Core letters/marker IDs, snapshots Undo/Redo, immutability, Unicode multiline formatter, crop/DPI math, marker geometry и отсутствие comment body в bitmap.
 - Реальные capture/placement на доступных мониторах, same-HWND selection → annotation, cancellation и stress cycles; native counters, software latency и resource checkpoints.
 - Actual clipboard payload bytes/readback, privacy hints, owned temporary lifetime/TTL; fake delivery sequence, focus/modifier/cancellation/error branches и native boundary guards. Suite заменяет clipboard синтетическими данными и не восстанавливает прежнее содержимое.
-- Toast replacement/expiry/noactivate placement/stress; Clear confirmation routes, guards и safe default; theme palette, shortcut discoverability.
-- Preferences/theme-only migration/unknown fields, fake и actual hotkey registration/conflicts, Settings cycles/live theme/language/controls. Updater metadata/hash/launch-order проверяются с fake providers/synthetic downloads без исполнения setup.
+- Toast replacement/expiry/noactivate placement/stress; Clear confirmation routes, guards и safe default; theme/design palette, shortcut discoverability.
+- Preferences/theme-only migration/unknown fields, fake и actual hotkey registration/conflicts, Settings cycles/live theme/design/language/controls. Updater metadata/hash/launch-order проверяются с fake providers/synthetic downloads без исполнения setup.
 
 `artifacts/verification.json` — default отчёт; создаются PNG previews. Результат относится только к текущему environment/run. Прошлые ignored reports не заменяют повторную проверку.
 
@@ -88,7 +88,7 @@ Smoke временно записывает deterministic EN/dark/default или
 .\verification\ScreenIt.Verification\bin\Release\net10.0-windows\ScreenIt.Verification.exe --check-updates
 ```
 
-Этот flag делает live GitHub request и **ожидает отсутствие версии новее 0.2.3**. После следующего релиза такой assertion может упасть при корректном updater. Default suite сеть updater не использует.
+Этот flag делает live GitHub request и ожидает отсутствие версии новее текущей assembly version. После следующего релиза такой assertion может упасть при корректном updater. Default suite сеть updater не использует.
 
 Не покрыты автоматикой: принятие attachments/text реальным receiver, rollback данных получателя, SmartScreen/обычный setup UX, все physical DPI/HDR/protected-content configs, все lock/sleep/disconnect transitions, OS crash/termination и безопасное завершение всех async races. Manual acceptance обязательна для затронутого flow.
 
@@ -207,8 +207,8 @@ Builder выполняет `dotnet publish src/ScreenIt.App/ScreenIt.App.csproj 
 | Artifact | Содержимое |
 |---|---|
 | `artifacts/release/publish/` | App EXE/DLL, Core DLL, deps/runtimeconfig, .NET/Windows Desktop native/managed runtime files, LICENSE и `licenses/`. ICO embedded в App; отдельный assets directory не требуется. |
-| `ScreenIt-Setup-0.2.3.exe` | Per-user Inno installer всего publish tree. |
-| `ScreenIt-0.2.3-win-x64-portable.zip` | Всё содержимое publish без дополнительного enclosing directory. |
+| `ScreenIt-Setup-0.3.0.exe` | Per-user Inno installer всего publish tree. |
+| `ScreenIt-0.3.0-win-x64-portable.zip` | Всё содержимое publish без дополнительного enclosing directory. |
 | `SHA256SUMS.txt` | SHA-256 installer и ZIP с exact versioned names, lowercase hash. |
 
 Не ship source, spikes, verification, screenshots/evidence, settings или PDB. Inno включает всё из publish recursively: чистота publish directory обязательна. Byte-for-byte reproducibility архивов/metadata не гарантируется.
@@ -226,13 +226,13 @@ Builder выполняет `dotnet publish src/ScreenIt.App/ScreenIt.App.csproj 
 
 Сохранять AppId, mutex, per-user path и settings location. Установка/удаление не должны трогать `%LOCALAPPDATA%\ScreenIt` и clipboard temp. Installer AppMutex блокирует работающую копию; автоматического Kill/restart нет.
 
-Для **закрытой установленной 0.2.2** и сохранённого baseline:
+Для **закрытой установленной 0.2.3** и сохранённого baseline (только disposable account/VM):
 
 ```powershell
-.\installer\Verify-Upgrade.ps1 -BaselineDirectory 'C:\path\to\retained-0.2.2-baseline'
+.\installer\Verify-Upgrade.ps1 -BaselineDirectory 'C:\path\to\retained-0.2.3-baseline'
 ```
 
-Baseline должен содержать `publish/`, `ScreenIt-Setup-0.2.2.exe` и SHA256SUMS; новая `0.2.3` — в `artifacts/release/`. Default baseline path — `artifacts/release-0.2.2-preserved`. Скрипт проверяет три ключевых installed binary hashes, reapplies baseline installer, затем upgrade installer с проверкой checksums, identity/path/version, preferences hashes, единственного uninstall entry, publish files и upgraded smoke. **Оставляет 0.2.3 установленной**, не удаляет existing installation. Проверка baseline ограничена указанными binaries, не всеми файлами old installation.
+Baseline должен содержать `publish/`, `ScreenIt-Setup-0.2.3.exe` и SHA256SUMS; новая `0.3.0` — в `artifacts/release/`. Default baseline path — `artifacts/release-0.2.3-preserved`. Скрипт проверяет три ключевых installed binary hashes, reapplies baseline installer, затем upgrade installer с проверкой checksums, identity/path/version, preferences hashes, единственного uninstall entry, publish files и upgraded smoke. **Оставляет 0.3.0 установленной**, не удаляет existing installation. Проверка baseline ограничена указанными binaries, не всеми файлами old installation. Ручной возврат к 0.2.3 описан в [ROLLBACK](installer/ROLLBACK.md); автоматического отката нет.
 
 Дополнительная ручная проверка в disposable environment:
 
@@ -271,3 +271,32 @@ Tracked автоматического CI/CD/release job нет. Ниже checkl
 `ScreenIt.Verification.exe --clear-preferences-only` проверяет optional preference, старые файлы/невалидное поле, unknown-field preservation, cancel/accept, повторную очистку, reload, восстановление предупреждения и save failure. Использует isolated settings, synthetic rasters, fake hotkey/autostart registrations; не заменяет clipboard. Открывает тестовые Clear dialogs; Settings рендерится скрыто. Отчёт: `artifacts/clear-preferences-verification.json`, EN/RU Light/Dark previews: `artifacts/clear-preferences/`. Проверки также включены в full suite.
 
 Manual smoke на тестовой копии: поставить флажок и отменить (предупреждение должно остаться); затем подтвердить с флажком, повторить Clear из tray/hotkey и проверить отсутствие окна, cleared toast и A/A1; перезапустить копию; вернуть предупреждение в General. Проверить Space/Tab input для чекбокса диалога и переключателя настроек, EN/RU и обе темы. Пользовательскую работающую копию не завершать автоматически; preferences и RAM session не использовать для этих checks.
+
+## CONSTRUCT design preview (Unreleased)
+
+Оформление Classic/Ember выпущено в 0.3.0. Исторический anchor сохранён для ссылок; preview builder ниже остаётся developer tool, не отдельным публичным релизом.
+
+`ScreenIt.Verification.exe --design-only` проверяет app-resource URI реальных шрифтов, RU/EN glyph coverage, контраст, точную export-палитру аннотаций (Signal/Paper, ширины 2.5/4.5, независимость от темы, совпадение gesture preview / draft / bitmap, synthetic fitted-window) и границы toolbar/нижнего Done на synthetic 640×600 и 1366×768. Проверяет capture guide (Region/Window, held modifier, input pass-through и wrapping), затем сохраняет Settings (включая узкое окно), capture/annotation/comment previews для RU/EN × Light/Dark в `artifacts/construct/` и образцы arrow/rectangle/pencil на светлом/тёмном фоне в `artifacts/annotation-palette/`; отчёт — `artifacts/design-verification.json`. Узкий прогон палитры доступен как `--annotation-palette-only` с отчётом `artifacts/annotation-palette-verification.json`. Режимы не захватывают desktop, не меняют preferences/clipboard и не регистрируют global hotkeys. Actual DPI/placement и native lifecycle остаются в full suite. Existing Settings/Discoverability/Toast checks отражают новую структуру и visual tokens, сохраняя проверки поведения.
+
+```powershell
+.\verification\Build-DesignPreview.ps1 -Dotnet dotnet
+```
+
+Скрипт создаёт новую timestamped папку и ZIP в `artifacts/`, используя существующий self-contained win-x64 профиль и runtime 10.0.12, с MIT/runtime/OFL notices. Он отказывается перезаписывать output, не запускает Inno и не трогает release artifacts. Запустить `ScreenIt/ScreenIt.App.exe` можно без переустановки; перед этим завершить обычную копию через tray, сохранив нужную RAM-сессию. Mutex и настройки общие, Settings применяются сразу. Автозапуск при его явном включении укажет на preview executable. После теста выйти из preview и запустить installed copy.
+
+Для визуальной приёмки проверить три Settings страницы, оба языка/темы, все инструменты и contextual Edit/Delete, отдельный Done, comment editor, подтверждения, tray и toast. Full suite/smoke не доказывают receiver acceptance, физические 150%/200%, high-contrast/reduced-motion UX и субъективное соответствие референсам; эти пункты остаются ручной приёмкой.
+
+Capture mode toggle smoke: `Smoke.ps1 -ExecutablePath <preview-exe> -ReportName mode-toggle-smoke.json -CaptureModeToggle` дополнительно вызывает настоящую кнопку Region → Window → Region через UI Automation и проверяет её динамическое имя. Flag опционален, чтобы обычный smoke оставался применим к старым baseline builds. Design-only также проверяет hit testing: кнопка получает pointer, остальная панель пропускает его на surface. Стандартные preconditions smoke сохраняются.
+
+Design selection: `ScreenIt.Verification.exe --design-selection-only` is an isolated Classic/Ember gate with temp preference files and hidden synthetic windows. It checks missing/unknown/old design persistence, unknown JSON fields, save failure via a locked file, both designs × Dark/Light palettes and accents, Painter preview/export PNGs, the three General lists (theme/design/language, EN/RU), confirmation Cancel/accept/no-op and the real modal prompt's safe default, overlay/comment/prompt/toast surfaces and TASK-2 first-frame placement for both designs. Report: `artifacts/design-selection-verification.json`; PNGs: `artifacts/design-selection/`. It does not use desktop capture, clipboard, real user settings or hotkeys. Full suite/Smoke still need their normal prepared desktop.
+
+Marker editor: `ScreenIt.Verification.exe --marker-editor-only` uses hidden synthetic overlays, without desktop acquisition, global input or clipboard writes. Checks RU/EN × Light/Dark, clamping at four corners, empty/cancel/Enter/Escape, Unicode bodies, bitmap identity when only text changes, rapid reopen, marker numbering/Undo/Redo and long IDs/tiny source rasterization. Report: `artifacts/marker-editor-verification.json`; outputs: `artifacts/marker-editor/`. Included in full suite. The design matrix also renders the connected card. Real animation timing/reduced-motion appearance, focus and fitted-source/mixed-DPI interaction need actual desktop smoke/manual review; the hidden-only run does not prove those scenarios.
+
+Comment composition refinement: use only `--marker-editor-only` for this component change. It additionally verifies UI badge hit/drag outside crop (including fitted sources), custom TextBox host/focus/selection/Undo, and simulated 100/125/150/200% viewport placement. Focused/unfocused RU/EN × Dark/Light cropped previews are saved as `artifacts/marker-editor/reference-*.png`; focus DP is driven offscreen, without user input/focus changes. Simulated DPI/layout is not physical desktop acceptance. Preserve a pre-change PNG and Painter source and compare hashes for this UI-only task. No unrelated full suite/smoke is required for each composition adjustment.
+
+
+Compact comment UI verification: `--marker-editor-only` now covers compact projected badge geometry, short/long IDs, tiny crops, fitted sources and simulated DPI. `ScreenIt.Verification.exe --marker-editor-live` shows the production AnnotationOverlay on each actual monitor with an opaque synthetic frame (no hotkeys, clipboard writes or user ScreenIt session); it temporarily takes keyboard focus. It verifies real focus, short/long input scrolling and close/reopen/cancel, then closes its owned windows. Report: `artifacts/marker-editor-live-verification.json`; actual screen captures: `artifacts/floating-comment/live-*.png`. Current hardware evidence is 100% and 125%; 150%/200% are layout simulations only. Run only these component checks for this change; full smoke is unnecessary. These checks do not prove physical IME, reduced-motion/high-contrast UX or every screen-edge combination on physical mixed-DPI hardware.
+
+Annotation toolbar placement only: `ScreenIt.Verification.exe --annotation-toolbar-only` checks independent top tool/Done blocks and viewport fit at 640/960/1366/1920 DIP in RU/EN and Dark/Light; no unrelated app smoke. Report: `artifacts/annotation-toolbar-verification.json`; offscreen production-UI renders: `artifacts/construct/toolbar-top-*.png`.
+
+Notices only: `ScreenIt.Verification.exe --notices-only` shows application-owned confirmation/information fixtures, checks safe default Enter/Esc/Cancel/close and explicit accept, single-OK information, passive toast activation/input, then runs existing static toast wrapping/size/placement checks. It also records the window rectangle of every rendered frame: the first visible frame of modal and nonmodal prompts must already be the final centered frame inside the foreground work area, with long RU/EN text and the Clear dialog, and it verifies actual monitor DPI for each available monitor plus the shared centering math. It temporarily shows/focuses owned test windows, without user session/clipboard/preferences writes or hotkey registration. Report: `artifacts/notices-verification.json`; actual cropped screen captures: `artifacts/notices/clear-*.png` and `toast-*.png`. No unrelated app smoke is required for notice styling. First-show rects are automation evidence inside the current environment; physical DPI perception and the real receiver/desktop combination remain a manual check.
