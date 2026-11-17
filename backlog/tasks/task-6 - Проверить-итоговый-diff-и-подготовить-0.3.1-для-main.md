@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@flash-worker'
 created_date: '2026-11-17T11:35:00Z'
-updated_date: '2026-11-17T12:09:00Z'
+updated_date: '2026-11-17T12:11:00Z'
 labels: []
 dependencies: []
 priority: high
@@ -25,7 +25,7 @@ ordinal: 6000
 - [x] #2 Metadata runtime, installer, package names, updater fixtures и актуальная документация согласованы с 0.3.1; compatibility и история не искажены.
 - [x] #3 Release build и безопасные scoped regressions выполнены; точные команды, логи, результаты и непроверенные manual/full-suite сценарии записаны.
 - [x] #4 Локальные installer, portable ZIP и SHA256SUMS 0.3.1 подготовлены и проверены по содержимому/хэшам либо конкретный prerequisite blocker зафиксирован без ложного PASS.
-- [ ] #5 Sol независимо принял финальный diff, обычный commit интегрирован в main и push подтверждён remote SHA без force; tag и GitHub Release не опубликованы.
+- [x] #5 Sol независимо принял финальный diff, обычный commit интегрирован в main и push подтверждён remote SHA без force; tag и GitHub Release не опубликованы.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -149,6 +149,15 @@ created: 2026-11-17T12:09:00Z
 Ревью Sol: фактические diff/new files, metadata/scripts/docs, ledger и build log проверены. Независимо color PASS 1684, fake updates PASS 222 (exit 0); ZIP SHA совпал, все 479 entries совпали с publish по SHA256, версия 0.3.1.0. Код принят для main. Installer остаётся блокером ISCC; подготовка полного комплекта не завершена. Поправка отчёта: await NoticeChecks.Run уже есть в HEAD 26c3576; это не новый фикс этого diff. AC1-4 приняты с явно указанной веткой блокера AC4; AC5 после remote verification.
 
 ---
+
+author: @sol-orchestrator
+created: 2026-11-17T12:11:00Z
+
+---
+
+Push в main подтверждён remote SHA 11460de9388bb3be58fb3868133162e75175b083. Без force, тега и GitHub Release. Для завершения подготовки нужен доступный ISCC; системную установку и пользовательские данные не меняли.
+
+---
 <!-- COMMENTS:END -->
 
 ## Final Summary
@@ -173,4 +182,6 @@ BLOCKER AC4: ISCC (Inno Setup 7.1.0) отсутствует; официальн�
 git diff --check exit 0. Commit/push/tag/refs не выполнялись; фоновых процессов нет.
 
 Sol: независимый аудит принят для интеграции в main. Color PASS 1684 и fake updates PASS 222, exit 0; ZIP 479/479 SHA256 совпадают с publish, хэш 2734be6940a5482394cbb942ccaf26e7c319046b5df65279f7364d093977de05. Installer/SHA256SUMS полного комплекта не готовы: отсутствует ISCC. Этап: код принят, подготовка installer заблокирована; задача остаётся In Progress. Уточнение истории: await NoticeChecks.Run присутствовал в HEAD, не новый фикс. Commit/push выполняет Sol далее, не считать их уже выполненными.
+
+Sol: commit 11460de9388bb3be58fb3868133162e75175b083 создан в codex/annotation-color-picker, main обновлён fast-forward и обычным push отправлен origin/main. git ls-remote подтвердил тот же SHA, v0.3.1 отсутствует. Код и версия 0.3.1 в main; полный релизный комплект НЕ готов из-за отсутствия ISCC. Этап: BLOCKED только по installer; задача остаётся In Progress. Portable ZIP локально проверен. Ни тег, ни GitHub Release не опубликованы.
 <!-- SECTION:FINAL_SUMMARY:END -->
