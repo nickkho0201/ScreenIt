@@ -35,11 +35,9 @@ ScreenIt — локальная утилита для Windows, которая п
 
 ## Установка
 
-Релиз **0.3.1** готовится и ещё не опубликован. Сейчас раздел [Releases](https://github.com/nickkho0201/ScreenIt/releases) предлагает пакеты 0.3.0 с их собственными versioned-именами (`ScreenIt-Setup-0.3.0.exe`, `ScreenIt-0.3.0-win-x64-portable.zip`); файлы 0.3.1 станут доступны для скачивания только после публикации.
-
 ### Установщик
 
-1. После публикации скачайте **ScreenIt-Setup-0.3.1.exe** из раздела [Releases](https://github.com/nickkho0201/ScreenIt/releases).
+1. Скачайте **ScreenIt-Setup-0.3.1.exe** из раздела [Releases](https://github.com/nickkho0201/ScreenIt/releases).
 2. Запустите установщик.
 3. Откройте ScreenIt из меню «Пуск».
 4. После запуска приложение работает в области уведомлений Windows.
@@ -50,7 +48,7 @@ ScreenIt — локальная утилита для Windows, которая п
 
 ### Переносная версия
 
-После публикации скачайте **ScreenIt-0.3.1-win-x64-portable.zip** из раздела [Releases](https://github.com/nickkho0201/ScreenIt/releases), распакуйте архив и запустите **ScreenIt.App.exe**.
+Скачайте **ScreenIt-0.3.1-win-x64-portable.zip** из раздела [Releases](https://github.com/nickkho0201/ScreenIt/releases), распакуйте архив и запустите **ScreenIt.App.exe**.
 
 ### Требования
 
@@ -202,7 +200,7 @@ dotnet build ScreenIt.sln -c Release
 
 Автоматические проверки дополняют, но не заменяют ручное тестирование.
 
-Для сборки установщика используется **Inno Setup 7.1.0**. Подробнее см. [инструкцию по сборке релиза](installer/README.md).
+Для сборки установщика используется **Inno Setup 7.1.1**. Подробнее см. [инструкцию по сборке релиза](installer/README.md).
 
 Каталог `spikes/` хранит историю технических экспериментов. Основное приложение от этих проектов не зависит.
 

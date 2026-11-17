@@ -32,11 +32,9 @@ Comment text mentions only screenshots with comment markers. Images without mark
 
 ## Installation
 
-The **0.3.1** release is being prepared and is not published yet. The [Releases](https://github.com/nickkho0201/ScreenIt/releases) page currently offers the 0.3.0 packages under their own versioned names (`ScreenIt-Setup-0.3.0.exe`, `ScreenIt-0.3.0-win-x64-portable.zip`); the 0.3.1 files below become downloadable only after publication.
-
 ### Installer
 
-1. After publication, download **ScreenIt-Setup-0.3.1.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
+1. Download **ScreenIt-Setup-0.3.1.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
 2. Run the installer.
 3. Start ScreenIt from the Start menu.
 4. ScreenIt runs in the system tray.
@@ -47,7 +45,7 @@ Installation is per-user, without mandatory administrator privileges. **Start wi
 
 ### Portable
 
-After publication, download **ScreenIt-0.3.1-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
+Download **ScreenIt-0.3.1-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
 
 ### Requirements
 
@@ -154,7 +152,7 @@ For startup with saved custom shortcuts, run `Smoke.ps1 -CustomBindings -ReportN
 
 Close the running ScreenIt instance before verification/smoke; its RAM session is not saved. Generated evidence stays under ignored `artifacts/`. Automated checks supplement manual acceptance.
 
-Release tooling: **Inno Setup 7.1.0**, build-time only. See [release build instructions](installer/README.md). `spikes/` preserves research history; production does not reference spike projects. Session ordering, annotation tools and clipboard sequencing retain their existing contracts.
+Release tooling: **Inno Setup 7.1.1**, build-time only. See [release build instructions](installer/README.md). `spikes/` preserves research history; production does not reference spike projects. Session ordering, annotation tools and clipboard sequencing retain their existing contracts.
 
 ## License
 

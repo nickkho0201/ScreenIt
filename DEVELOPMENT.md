@@ -9,7 +9,7 @@
 - App и Verification: `net10.0-windows`, WPF + WinForms, `PlatformTarget=x64`. Core: `net10.0`. Все три проекта включают warnings-as-errors. Обозначения solution x86 не означают поддержку x86 приложения.
 - Для framework-dependent build/run нужен .NET 10 Windows Desktop runtime x64. SDK включает developer runtime; installer/portable self-contained и не требуют runtime на машине получателя.
 - PowerShell scripts используются для smoke и packaging. PowerShell 7 — практический вариант для этих команд; minimum host version явно не закреплена. `Verify-Installer.ps1`/`Verify-Upgrade.ps1` используют .NET `Path.GetRelativePath`; не считать Windows PowerShell 5.1 проверенным host. Pointer smoke содержит Add-Type references к современным System.Drawing assemblies и тоже требует проверки в выбранном host.
-- Inno Setup **7.1.0**, `ISCC.exe` — только build-time dependency installer. Передавайте полный путь, если нет в PATH.
+- Inno Setup **7.1.1**, `ISCC.exe` — только build-time dependency installer. Передавайте полный путь, если нет в PATH.
 - Нет third-party runtime PackageReference. Root `NuGet.Config` очищает package sources; обычный build использует установленные SDK targeting packs. Self-contained publish явно включает nuget.org для Microsoft runtime packs.
 - Publish profile закрепляет .NET Core/Windows Desktop runtime **10.0.12**. Он должен быть доступен из restore/cache, независимо от developer runtime.
 - Git нужен для workflow; GitHub CLI не нужен build/test/package. CLI или GitHub UI можно использовать для публикации только после прямого разрешения владельца; checked-in автоматизации release нет.

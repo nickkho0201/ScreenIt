@@ -1,6 +1,6 @@
 # Release build
 
-Windows, .NET 10 SDK, and Inno Setup 7.1.0 are build dependencies. ScreenIt has no third-party runtime packages. NuGet is used at build time to restore Microsoft's self-contained runtime packs.
+Windows, .NET 10 SDK, and Inno Setup 7.1.1 are build dependencies. ScreenIt has no third-party runtime packages. NuGet is used at build time to restore Microsoft's self-contained runtime packs.
 
 ```powershell
 .\installer\Build-Release.ps1 -Iscc 'C:\path\to\Inno Setup 7\ISCC.exe'

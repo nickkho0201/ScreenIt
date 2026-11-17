@@ -1,4 +1,4 @@
-## ScreenIt 0.3.1 — 2026-11-17 (release preparation, not published)
+## ScreenIt 0.3.1 — 2026-11-17
 
 ### Annotation color picker
 
@@ -10,16 +10,16 @@
 ### Compatibility and rollback
 
 - No settings migration: schema version 2 and existing theme/design/language/hotkey values are unchanged; the annotation color is not persisted. App identity (`AppId`, mutex, per-user install path) is unchanged.
-- After publication, download **ScreenIt-Setup-0.3.1.exe** or **ScreenIt-0.3.1-win-x64-portable.zip** with **SHA256SUMS.txt**. Windows 11 x64, self-contained, unsigned. The published 0.3.0 packages keep their own versioned names and remain available for [manual rollback](ROLLBACK.md); there is no automatic rollback or RAM-session recovery.
+- Download **ScreenIt-Setup-0.3.1.exe** or **ScreenIt-0.3.1-win-x64-portable.zip** with **SHA256SUMS.txt**. Windows 11 x64, self-contained, unsigned. The published 0.3.0 packages keep their own versioned names and remain available for [manual rollback](ROLLBACK.md); there is no automatic rollback or RAM-session recovery.
 
-### Release verification (2026-11-17, local preparation)
+### Release verification (2026-11-17)
 
 - Release solution build: PASS, zero warnings/errors (local .NET SDK 10.0.404, isolated `artifacts/task6-build/out`).
 - Isolated scoped checks, all exit 0: annotation color 1684; toolbar 32; palette 20; design 374; design selection 114; settings visual 508; toast static 428; pencil 34; comments 11; marker editor 466; updater with fake providers 222 (no network).
 - Annotation-color checks cover presets/staged candidate/clamp, keyboard containment, outside dismissal, theme refresh, runtime-only color and export colors for both designs.
-- Portable ZIP audit: 479 published files extracted back with 479/479 matching SHA-256, no PDB, no verification/source files; MIT license and runtime notices included.
-- The Inno Setup compiler was not available in this preparation environment, so the installer and canonical `artifacts/release` were **not** built or verified here. Installation, upgrade, receiver/physical input, physical/mixed DPI, High Contrast and system reduced-motion remain unverified.
-- These notes describe a local preparation, not a publication: no tag or GitHub Release exists for 0.3.1 yet.
+- Release packages built with the official Inno Setup 7.1.1 compiler through `installer/Build-Release.ps1`: `ScreenIt-Setup-0.3.1.exe`, `ScreenIt-0.3.1-win-x64-portable.zip` and `SHA256SUMS.txt`. The installer reports product version 0.3.1 and compressed all 479 published files; it is unsigned.
+- Package audit: 479 published files, no PDB/verification/source, MIT license and runtime notices included; the portable ZIP extracts to 479/479 files matching the publish tree by SHA-256; `SHA256SUMS.txt` matches both assets.
+- Installation, upgrade, receiver/physical input, physical/mixed DPI, High Contrast and system reduced-motion remain unverified by this local build.
 
 ---
 
