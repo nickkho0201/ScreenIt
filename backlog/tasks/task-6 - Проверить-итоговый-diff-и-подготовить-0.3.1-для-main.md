@@ -1,11 +1,11 @@
 ---
 id: TASK-6
 title: Проверить итоговый diff и подготовить 0.3.1 для main
-status: In Progress
+status: Done
 assignee:
   - '@flash-worker'
 created_date: '2026-11-17T11:35:00Z'
-updated_date: '2026-11-17T12:23:00Z'
+updated_date: '2026-11-17T12:27:00Z'
 labels: []
 dependencies: []
 priority: high
@@ -28,7 +28,7 @@ ordinal: 6000
 - [x] #5 Sol независимо принял финальный diff, обычный commit интегрирован в main и push подтверждён remote SHA без force.
 - [x] #6 Официальный Inno Setup проверен и установлен, версия и путь ISCC записаны; необязательные системные изменения не выполнялись.
 - [x] #7 Полный комплект 0.3.1 собран штатным builder: installer, portable и SHA256SUMS; содержимое и хэши проверены, прежние assets сохранены.
-- [ ] #8 Sol опубликовал annotated v0.3.1 и GitHub Release с тремя assets; remote refs и повторно скачанные файлы проверены.
+- [x] #8 Sol опубликовал annotated v0.3.1 и GitHub Release с тремя assets; remote refs и повторно скачанные файлы проверены.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -237,6 +237,15 @@ created: 2026-11-17T12:23:00Z
 Sol принял установку Inno и canonical пакеты после чтения карточки, diff docs и build log, проверки Authenticode и хэшей. ZIP: 479 entries, mismatch=0; версия App 0.3.1.0. SHA256SUMS соответствует installer и ZIP. AC6-7 подтверждены. AC5 уточнён согласно новому разрешению публикации, история сохранена. Далее commit docs, annotated tag и release; AC8 пока не выполнен.
 
 ---
+
+author: @sol-orchestrator
+created: 2026-11-17T12:27:00Z
+
+---
+
+Sol: опубликован stable Latest v0.3.1. Annotated tag проверен: peeled commit 3130326b93c270b6719f49b58e5dcf7c20308401 совпадает с release main. Все три assets повторно скачаны в artifacts/release-0.3.1-remote-verified, SHA256 совпадают с локальными; GitHub digests тоже совпадают. API latest подтверждает v0.3.1, draft=false, prerelease=false. Установка ScreenIt, full suite и Smoke не выполнялись. AC1-8 приняты; задача Done.
+
+---
 <!-- COMMENTS:END -->
 
 ## Final Summary
@@ -257,4 +266,6 @@ Docs release-ready: README EN/RU без not-published banner и без "After pu
 Self-review: git diff после сборки только docs + карточка TASK-6, git diff --check exit 0; artifacts/release ранее отсутствовал и не перезаписывался; фоновых процессов нет; ScreenIt, clipboard, settings и hotkeys не затрагивались.
 
 AC6 и AC7 отмечены по evidence. AC8 остается за Sol: annotated v0.3.1, GitHub Release с тремя assets, remote refs и повторная загрузка файлов. Commit/push/tag/refs Flash не выполнял.
+
+ЗАВЕРШЕНО SOL: официальный Inno Setup 7.1.1 установлен и проверен; canonical installer/portable/SHA256SUMS собраны и приняты. Release commit 3130326b93c270b6719f49b58e5dcf7c20308401 опубликован в main и annotated v0.3.1. Stable Latest release: https://github.com/nickkho0201/ScreenIt/releases/tag/v0.3.1. Все три assets скачаны обратно, SHA256 и GitHub digests совпали с локальными. Installer 2fe93a7aa18cdc18c097263afbf2c7a37e4ee407690f490ea7cf5c2aec27e034; portable 5a07184dd2dc7ec93d6b568659d1878b65da30b6917d22e36f793f39de806d9a. Прежние блокеры сняты; TASK-6 Done. Пользовательский ScreenIt не устанавливался и не закрывался; full suite/Smoke, installation/upgrade, physical receiver/DPI/HC/IME остаются непроверенными.
 <!-- SECTION:FINAL_SUMMARY:END -->
