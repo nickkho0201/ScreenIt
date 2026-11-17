@@ -1,3 +1,28 @@
+## ScreenIt 0.3.1 — 2026-11-17 (release preparation, not published)
+
+### Annotation color picker
+
+- A compact palette button between the four annotation tools and Undo shows the current working color and opens a popup with eight presets, a saturation/brightness field, a hue strip, R/G/B fields and a square preview. The **C** key opens the same popup in annotation mode.
+- Presets apply immediately. Custom SV/hue/RGB edits stay a local candidate until the square **Apply color** preview is activated (pointer, Enter/Space or UI Automation); Escape, an outside click, deactivation or closing the overlay discard the candidate. RGB fields only edit the candidate and clamp input/paste above 255 to 255 without truncating digits.
+- The chosen color applies to new markers, arrows, rectangles and pencil strokes in both the live preview and the exported image; older annotations keep their own color through Undo/Redo/Delete/move. A colored marker uses the chosen color as its accent while keeping its shape, label, geometry and readable number; comment bodies remain separate editable text and never reach the bitmap.
+- Without an explicit choice both designs keep their previous colors (Classic `#4255C5` with a white halo, Ember Signal/Paper). The working color lives only in RAM for the process and survives new screenshots; preferences and schema are unchanged. Available in Classic/Ember, Dark/Light and RU/EN.
+
+### Compatibility and rollback
+
+- No settings migration: schema version 2 and existing theme/design/language/hotkey values are unchanged; the annotation color is not persisted. App identity (`AppId`, mutex, per-user install path) is unchanged.
+- After publication, download **ScreenIt-Setup-0.3.1.exe** or **ScreenIt-0.3.1-win-x64-portable.zip** with **SHA256SUMS.txt**. Windows 11 x64, self-contained, unsigned. The published 0.3.0 packages keep their own versioned names and remain available for [manual rollback](ROLLBACK.md); there is no automatic rollback or RAM-session recovery.
+
+### Release verification (2026-11-17, local preparation)
+
+- Release solution build: PASS, zero warnings/errors (local .NET SDK 10.0.404, isolated `artifacts/task6-build/out`).
+- Isolated scoped checks, all exit 0: annotation color 1684; toolbar 32; palette 20; design 374; design selection 114; settings visual 508; toast static 428; pencil 34; comments 11; marker editor 466; updater with fake providers 222 (no network).
+- Annotation-color checks cover presets/staged candidate/clamp, keyboard containment, outside dismissal, theme refresh, runtime-only color and export colors for both designs.
+- Portable ZIP audit: 479 published files extracted back with 479/479 matching SHA-256, no PDB, no verification/source files; MIT license and runtime notices included.
+- The Inno Setup compiler was not available in this preparation environment, so the installer and canonical `artifacts/release` were **not** built or verified here. Installation, upgrade, receiver/physical input, physical/mixed DPI, High Contrast and system reduced-motion remain unverified.
+- These notes describe a local preparation, not a publication: no tag or GitHub Release exists for 0.3.1 yet.
+
+---
+
 ## ScreenIt 0.3.0 — 2026-11-13
 
 ### Classic / Ember

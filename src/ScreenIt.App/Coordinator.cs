@@ -129,6 +129,15 @@ internal sealed class Coordinator : IDisposable
         catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { Preferences.AnnotationModifier=old;return false; }
         foreach(var overlay in overlays) overlay.Refresh();return true;
     }
+    // Runtime-only working color for new annotations; null keeps each design's own export palette.
+    // It is intentionally not persisted and survives captures within this process.
+    internal AnnotationColor? AnnotationColor { get; private set; }
+    internal AnnotationColor EffectiveAnnotationColor => AnnotationColor ?? Painter.DefaultAnnotationColor;
+    internal void ChooseAnnotationColor(AnnotationColor? color)
+    {
+        AnnotationColor=color;
+        foreach(var overlay in overlays) overlay.Refresh();
+    }
     internal bool ChangeClearConfirmation(bool disabled)
     {
         bool old=Preferences.DisableClearConfirmation;Preferences.DisableClearConfirmation=disabled;

@@ -1,6 +1,6 @@
 # Development
 
-Практический workflow текущего ScreenIt `0.3.0`. Начните с [README](README.md) и [AGENTS](AGENTS.md); runtime flow и ограничения описаны в [ARCHITECTURE](ARCHITECTURE.md), история — в [CHANGELOG](CHANGELOG.md).
+Практический workflow текущего ScreenIt `0.3.1`. Начните с [README](README.md) и [AGENTS](AGENTS.md); runtime flow и ограничения описаны в [ARCHITECTURE](ARCHITECTURE.md), история — в [CHANGELOG](CHANGELOG.md).
 
 ## Environment
 
@@ -103,6 +103,10 @@ Smoke временно записывает deterministic EN/dark/default или
 `ScreenIt.Verification.exe --pencil-only` проверяет модель/immutable snapshots, замкнутые штрихи, границы, hit test, Undo/Redo/Delete, preview/commit/cancel, `P`, toolbar EN/RU × Dark/Light и финальный bitmap на synthetic source. Скрытый overlay не захватывает desktop, не регистрирует global hotkeys, не записывает preferences и не заменяет clipboard; допускается при работающей пользовательской копии. Отчёт — `artifacts/pencil-verification.json`, previews — `artifacts/pencil/`. Те же checks включены в full suite; его общие preconditions сохраняются.
 
 Manual acceptance на тестовой копии: выбрать карандаш кнопкой и `P`, нарисовать несколько пересекающихся/замкнутых штрихов, проверить release за границей crop, Delete и Undo/Redo целого штриха, Escape во время рисования, смену инструмента и потерю focus. Проверить редактирование комментария (буква P вводится в текст), оба actual DPI и fitted window source. Commit → Paste должен содержать штрихи без новых badges/comments; тулбар и selection handles в output отсутствуют. Full production smoke и настоящий receiver требуют закрытой пользовательской копии и стандартных preconditions.
+
+### Annotation color (0.3.1)
+
+`ScreenIt.Verification.exe --annotation-color-only` — изолированная проверка выбора цвета аннотаций. Использует synthetic frames, скрытые overlay и временные файлы настроек; не захватывает desktop, не регистрирует hotkeys, не пишет clipboard и реальные preferences. Проверяет HSV↔RGB (0/255, achromatic, roundtrip), синхронизацию пресетов/SV/hue/RGB, staged-кандидат против рабочего цвета (пресеты применяются сразу, кастомный цвет — только кнопкой «Применить цвет», Escape/outside не применяют), C в режиме аннотаций и его отсутствие в комментарии/popup, clamp >255 для ввода и длинных строк, пустой/невалидный ввод, быстрые изменения, сохранение hue при белом/чёрном и saturation при V=0; цвет всех четырёх инструментов в gesture/draft/export, неизменность старых аннотаций и Undo/Redo, байт-идентичность вывода без явного выбора, читаемость и геометрию метки, отсутствие comment body в bitmap; layout popup (адаптивная ширина, notch, clamp) в Classic/Ember × Dark/Light × EN/RU на 1366/640/440; изоляцию клавиатуры (Esc закрывает только popup, RGB не запускает инструменты/Delete/Undo/commit), внешний клик без аннотации, очистку при interruption/close, reduced-motion static state; RAM-хранение цвета между снимками и отсутствие поля цвета в preferences. Отчёт — `artifacts/annotation-color-verification.json`; PNG — `artifacts/annotation-color/` (picker/popup обоих оформлений и тем, RU/EN, узкий viewport; export-образцы). Режим не заменяет ручную проверку реального mouse capture SV/hue, смешанного DPI, High Contrast и IME; full suite/Smoke сохраняют свои preconditions.
 
 ### Window capture (0.2.0)
 
@@ -207,8 +211,8 @@ Builder выполняет `dotnet publish src/ScreenIt.App/ScreenIt.App.csproj 
 | Artifact | Содержимое |
 |---|---|
 | `artifacts/release/publish/` | App EXE/DLL, Core DLL, deps/runtimeconfig, .NET/Windows Desktop native/managed runtime files, LICENSE и `licenses/`. ICO embedded в App; отдельный assets directory не требуется. |
-| `ScreenIt-Setup-0.3.0.exe` | Per-user Inno installer всего publish tree. |
-| `ScreenIt-0.3.0-win-x64-portable.zip` | Всё содержимое publish без дополнительного enclosing directory. |
+| `ScreenIt-Setup-0.3.1.exe` | Per-user Inno installer всего publish tree. |
+| `ScreenIt-0.3.1-win-x64-portable.zip` | Всё содержимое publish без дополнительного enclosing directory. |
 | `SHA256SUMS.txt` | SHA-256 installer и ZIP с exact versioned names, lowercase hash. |
 
 Не ship source, spikes, verification, screenshots/evidence, settings или PDB. Inno включает всё из publish recursively: чистота publish directory обязательна. Byte-for-byte reproducibility архивов/metadata не гарантируется.
@@ -232,7 +236,7 @@ Builder выполняет `dotnet publish src/ScreenIt.App/ScreenIt.App.csproj 
 .\installer\Verify-Upgrade.ps1 -BaselineDirectory 'C:\path\to\retained-0.2.3-baseline'
 ```
 
-Baseline должен содержать `publish/`, `ScreenIt-Setup-0.2.3.exe` и SHA256SUMS; новая `0.3.0` — в `artifacts/release/`. Default baseline path — `artifacts/release-0.2.3-preserved`. Скрипт проверяет три ключевых installed binary hashes, reapplies baseline installer, затем upgrade installer с проверкой checksums, identity/path/version, preferences hashes, единственного uninstall entry, publish files и upgraded smoke. **Оставляет 0.3.0 установленной**, не удаляет existing installation. Проверка baseline ограничена указанными binaries, не всеми файлами old installation. Ручной возврат к 0.2.3 описан в [ROLLBACK](installer/ROLLBACK.md); автоматического отката нет.
+Baseline должен содержать `publish/`, `ScreenIt-Setup-0.2.3.exe` и SHA256SUMS; новая `0.3.1` — в `artifacts/release/`. Default baseline path — `artifacts/release-0.2.3-preserved`. Скрипт проверяет три ключевых installed binary hashes, reapplies baseline installer, затем upgrade installer с проверкой checksums, identity/path/version, preferences hashes, единственного uninstall entry, publish files и upgraded smoke. **Оставляет 0.3.1 установленной**, не удаляет existing installation. Проверка baseline ограничена указанными binaries, не всеми файлами old installation. Ручной возврат к 0.2.3 описан в [ROLLBACK](installer/ROLLBACK.md); автоматического отката нет.
 
 Дополнительная ручная проверка в disposable environment:
 

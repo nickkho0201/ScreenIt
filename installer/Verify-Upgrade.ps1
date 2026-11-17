@@ -15,8 +15,9 @@ foreach($name in @('ScreenIt.App.exe','ScreenIt.App.dll','ScreenIt.Core.dll')) {
 }
 $before=if(Test-Path -LiteralPath $settings) { (Get-FileHash -LiteralPath $settings).Hash } else { $null }
 $checks=[Collections.Generic.List[string]]::new()
-foreach($version in @('0.2.3','0.3.0')) {
-    $folder=if($version -eq '0.2.3') { $baseline } else { $release }
+$baselineVersion='0.2.3'
+foreach($version in @($baselineVersion,'0.3.1')) {
+    $folder=if($version -eq $baselineVersion) { $baseline } else { $release }
     $filename="ScreenIt-Setup-$version.exe"
     $sumLine=Get-Content -LiteralPath (Join-Path $folder 'SHA256SUMS.txt') | Where-Object { $_ -match ("^[a-fA-F0-9]{64}  "+[regex]::Escape($filename)+'$') }
     if(@($sumLine).Count -ne 1 -or (Get-FileHash -LiteralPath (Join-Path $folder $filename)).Hash -ne $sumLine.Substring(0,64)) { throw 'Installer checksum mismatch.' }
@@ -40,7 +41,7 @@ if($entries.Count -ne 1) { throw 'Expected exactly one ScreenIt uninstall entry.
 $checks.Add('Exactly one uninstall entry; no parallel installation')
 & (Join-Path $root 'verification/Smoke.ps1') -ExecutablePath (Join-Path $target 'ScreenIt.App.exe') -ReportName upgrade-smoke.json
 if((Get-Content -LiteralPath (Join-Path $root 'artifacts/upgrade-smoke.json') -Raw | ConvertFrom-Json).status -ne 'PASS') { throw 'Upgraded application smoke failed.' }
-$checks.Add('Installed 0.3.0 startup/capture/commit/Clear/hotkeys/shutdown smoke PASS')
+$checks.Add('Installed 0.3.1 startup/capture/commit/Clear/hotkeys/shutdown smoke PASS')
 $report=[ordered]@{status='PASS';count=$checks.Count;checks=$checks;leftInstalled=$true}
 $report | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $root 'artifacts/upgrade-verification.json') -Encoding utf8
 $report | ConvertTo-Json -Depth 4

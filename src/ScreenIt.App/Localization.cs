@@ -273,5 +273,21 @@ Another ScreenIt copy owns this startup entry. It was left unchanged.|Этой �
 The installation path is too long for Windows startup. Move ScreenIt to a shorter folder.|Путь установки слишком длинный для автозапуска Windows. Переместите ScreenIt в папку с более коротким путём.
 The startup setting is only partially applied. Check Windows startup apps.|Настройка автозапуска применена частично. Проверьте приложения автозагрузки Windows.
 Windows changed the startup entry during the change. It was left as is.|Windows изменила запись автозапуска во время операции. Она оставлена без изменений.
+Annotation color|Цвет аннотаций
+Annotation color (C)|Цвет аннотаций (C)
+Apply color|Применить цвет
+Presets|Пресеты
+Custom color|Свой цвет
+Signal|Сигнальный
+Yellow|Жёлтый
+Lime|Лаймовый
+Cyan|Бирюзовый
+Blue|Синий
+Purple|Фиолетовый
+White|Белый
+Black|Чёрный
+Hue|Оттенок
+Arrow keys adjust saturation and brightness.|Стрелки изменяют насыщенность и яркость.
+Arrow keys adjust hue.|Стрелки изменяют оттенок.
 """;
 }

@@ -8,7 +8,11 @@ public readonly record struct Bounds(double X, double Y, double Width, double He
 {
     public bool Contains(P p) => p.X >= X && p.Y >= Y && p.X <= X + Width && p.Y <= Y + Height;
 }
-public abstract record Annotation(Guid Id);
+public abstract record Annotation(Guid Id)
+{
+    // Null keeps the design's own export palette; a value is the color chosen when the object was created.
+    public AnnotationColor? Color { get; init; }
+}
 public sealed record Marker(Guid Id, int Number, P Anchor, string Comment, string ScreenshotLetter = "A") : Annotation(Id)
 {
     public string Label => ScreenshotLetter + Number;
@@ -18,7 +22,7 @@ public sealed record Box(Guid Id, Bounds Rect) : Annotation(Id);
 public sealed record PencilStroke : Annotation
 {
     public IReadOnlyList<P> Points { get; }
-    public PencilStroke(Guid id, IEnumerable<P> points) : base(id) => Points = Array.AsReadOnly(points.ToArray());
+    public PencilStroke(Guid id, IEnumerable<P> points, AnnotationColor? color = null) : base(id) { Points = Array.AsReadOnly(points.ToArray()); Color = color; }
 }
 public enum Tool { Marker, Arrow, Rectangle, Pencil }
 public enum EditorEnter { Commit, Newline, Blocked }
@@ -38,31 +42,31 @@ public sealed class ScreenshotDraft(int width, int height, string letter)
     public bool CanUndo => undo.Count > 0;
     public bool CanRedo => redo.Count > 0;
     private void Apply(Annotation[] next) { Guard(); undo.Push(items); items = next; redo.Clear(); }
-    public Marker CreateMarker(P anchor, string comment)
+    public Marker CreateMarker(P anchor, string comment, AnnotationColor? color = null)
     {
         if (string.IsNullOrWhiteSpace(comment)) throw new ArgumentException("A marker needs a non-empty comment.");
-        var marker = new Marker(Guid.NewGuid(), NextMarker, Geo.Clamp(anchor, Width, Height), comment, Letter);
+        var marker = new Marker(Guid.NewGuid(), NextMarker, Geo.Clamp(anchor, Width, Height), comment, Letter) { Color = color };
         Apply([..items, marker]); highWater = marker.Number; return marker;
     }
-    public bool AddArrow(P a, P b)
+    public bool AddArrow(P a, P b, AnnotationColor? color = null)
     {
         a = Geo.Clamp(a, Width, Height); b = Geo.Clamp(b, Width, Height);
         if (a.Distance(b) < 4) return false;
-        Apply([..items, new Arrow(Guid.NewGuid(), a, b)]); return true;
+        Apply([..items, new Arrow(Guid.NewGuid(), a, b) { Color = color }]); return true;
     }
-    public bool AddBox(P a, P b)
+    public bool AddBox(P a, P b, AnnotationColor? color = null)
     {
         var r = Geo.Normalize(a, b, Width, Height);
         if (r.Width < 3 || r.Height < 3) return false;
-        Apply([..items, new Box(Guid.NewGuid(), r)]); return true;
+        Apply([..items, new Box(Guid.NewGuid(), r) { Color = color }]); return true;
     }
-    public bool AddPencil(IEnumerable<P> points)
+    public bool AddPencil(IEnumerable<P> points, AnnotationColor? color = null)
     {
         var path = points.Select(p => Geo.Clamp(p, Width, Height)).ToArray();
         double length = 0;
         for (int i = 1; i < path.Length; i++) length += path[i - 1].Distance(path[i]);
         if (length < 4) return false;
-        Apply([..items, new PencilStroke(Guid.NewGuid(), path)]); return true;
+        Apply([..items, new PencilStroke(Guid.NewGuid(), path, color)]); return true;
     }
     public void Move(Guid id, P anchor)
     {

@@ -26,8 +26,9 @@ internal static class MarkerBadgeUi
     }
     // Synthetic layout callers use the old 40x32 physical-pixel baseline at 100%.
     internal static Rect Bounds(Point anchor,string label,Size viewport) => Bounds(new Rect(anchor.X-20,anchor.Y-16,40,32),label,new Rect(0,0,viewport.Width,viewport.Height),viewport);
-    internal static void Draw(DrawingContext dc,Point anchor,Rect rect,string label,double emphasis)
+    internal static void Draw(DrawingContext dc,Point anchor,Rect rect,string label,double emphasis,AnnotationColor? color = null)
     {
+        var accent=color is { } chosen ? Painter.Brush(chosen) : ConstructDesign.Signal;
         double c=Math.Min(3,Math.Min(rect.Width,rect.Height)/4);
         var shape=new StreamGeometry();using(var p=shape.Open())
         {
@@ -36,13 +37,13 @@ internal static class MarkerBadgeUi
         }
         var center=new Point(rect.Left+rect.Width/2,rect.Top+rect.Height/2);
         bool displaced=(center-anchor).Length>2;
-        if(displaced) { dc.DrawLine(new Pen(ConstructDesign.Ink,3),center,anchor);dc.DrawLine(new Pen(ConstructDesign.Signal,1),center,anchor); }
-        dc.DrawGeometry(ConstructDesign.Ink,new Pen(ConstructDesign.Signal,1+emphasis),shape);
+        if(displaced) { dc.DrawLine(new Pen(ConstructDesign.Ink,3),center,anchor);dc.DrawLine(new Pen(accent,1),center,anchor); }
+        dc.DrawGeometry(ConstructDesign.Ink,new Pen(accent,1+emphasis),shape);
         var text=new FormattedText(label,CultureInfo.InvariantCulture,FlowDirection.LeftToRight,new Typeface(ConstructDesign.Body,FontStyles.Normal,FontWeights.SemiBold,FontStretches.Normal),13,ConstructDesign.Paper,1);
         double scale=Math.Min(1,Math.Max(1,rect.Width-10)/Math.Max(1,text.Width));
         dc.PushTransform(new TranslateTransform(rect.Left+rect.Width/2,rect.Top+rect.Height/2));dc.PushTransform(new ScaleTransform(scale,scale));
         dc.DrawText(text,new Point(-text.Width/2,-text.Height/2));dc.Pop();dc.Pop();
-        if(displaced) dc.DrawEllipse(ConstructDesign.Signal,new Pen(ConstructDesign.Paper,1),anchor,2,2);
+        if(displaced) dc.DrawEllipse(accent,new Pen(ConstructDesign.Paper,1),anchor,2,2);
     }
 }
 

@@ -75,8 +75,15 @@ internal sealed class AnnotationOverlay : Window
     private readonly Dictionary<Tool,Button> toolButtons = [];
     private StackPanel? toolbarBrand;
     private WrapPanel? classicTools;
-    private readonly Button editButton, deleteButton, undoButton, redoButton;
+    private readonly Button colorButton, editButton, deleteButton, undoButton, redoButton;
     private readonly Button doneButton;
+    private System.Windows.Shapes.Path? paletteIcon;
+    private readonly List<System.Windows.Shapes.Ellipse> paletteDots=[];
+    private System.Windows.Shapes.Ellipse? colorDot;
+    private System.Windows.Shapes.Path? colorChevron;
+    private AnnotationColorPicker? colorPicker;
+    private AnnotationColorPicker.NotchSurface? colorNotch;
+    private AnnotationColor? gestureColor, pendingColor;
     internal UiTheme AppliedTheme { get; private set; }
     private HwndSource? source;
     private P editingAnchor, down;
@@ -126,6 +133,7 @@ internal sealed class AnnotationOverlay : Window
             toolButtons.Add(Tool.Pencil,Add("Pencil","Pencil (P)",()=>Switch(Tool.Pencil)));
             toolButtons.Add(Tool.Arrow,Add("Arrow","Arrow (A)",()=>Switch(Tool.Arrow)));
             toolButtons.Add(Tool.Rectangle,Add("Rectangle","Rectangle (R)",()=>Switch(Tool.Rectangle)));
+            colorButton=CreateColorButton();tools.Children.Add(colorButton);annotationButtons.Add(colorButton);
             editButton = Add("Edit","Edit comment (E)",EditSelected);
             deleteButton = Add("Delete","Delete selected (Delete)",Delete);
             undoButton = Add("Undo","Undo (Ctrl+Z)",()=>History(false)); redoButton = Add("Redo","Redo (Ctrl+Y)",()=>History(true));
@@ -152,6 +160,7 @@ internal sealed class AnnotationOverlay : Window
             toolButtons.Add(Tool.Arrow,Add("↗ Arrow","Arrow (A)",()=>Switch(Tool.Arrow)));
             toolButtons.Add(Tool.Rectangle,Add("▭ Rectangle","Rectangle (R)",()=>Switch(Tool.Rectangle)));
             toolButtons.Add(Tool.Pencil,Add("✎ Pencil","Pencil (P)",()=>Switch(Tool.Pencil)));
+            colorButton=CreateColorButton();tools.Children.Add(colorButton);annotationButtons.Add(colorButton);
             editButton = Add("Edit","Edit comment (E)",EditSelected);
             deleteButton = Add("Delete","Delete selected (Delete)",Delete);
             undoButton = Add("↶","Undo (Ctrl+Z)",()=>History(false)); redoButton = Add("↷","Redo (Ctrl+Y)",()=>History(true));
@@ -173,8 +182,9 @@ internal sealed class AnnotationOverlay : Window
         Deactivated += (_,_)=> { InterruptGesture();UpdateModifierVisual(); };
         Activated += (_,_)=>UpdateModifierVisual();
         Closing += (_,e)=> { if (!ClosingByApp) { e.Cancel = true; Dispatcher.BeginInvoke(()=>owner.Cancel()); } };
-        Closed += (_,_)=> { StopEditorMotion();markerSurface?.Stop();commentEditing=false;BeginAnimation(GlowOpacityProperty,null);BeginAnimation(GlowStrengthProperty,null);if (source != null) { source.RemoveHook(Hook); source.Dispose(); source = null; } editor.Text = ""; Content = null; };
-        PreviewKeyDown += Keys; surface.MouseLeftButtonDown += Down;
+        Closed += (_,_)=> { CloseColorPicker();StopEditorMotion();markerSurface?.Stop();commentEditing=false;BeginAnimation(GlowOpacityProperty,null);BeginAnimation(GlowStrengthProperty,null);if (source != null) { source.RemoveHook(Hook); source.Dispose(); source = null; } editor.Text = ""; Content = null; };
+        PreviewKeyDown += Keys;
+        PreviewMouseLeftButtonDown += (_,e)=> { if(colorPicker!=null && !ColorPickerHitTest(e.GetPosition(this))) { CloseColorPicker();e.Handled=true; } }; surface.MouseLeftButtonDown += Down;
         PreviewKeyUp+=(_,_)=>UpdateModifierVisual();
         surface.MouseMove += (_,e)=>MovePointer(InputPoint(e)); surface.MouseLeftButtonUp += (_,e)=>EndPointer(InputPoint(e));
         surface.LostMouseCapture += (_,_)=>InterruptGesture();surface.MouseLeave+=(_,_)=> { hoveredMarker=null;Refresh(); };ApplyTheme();
@@ -217,6 +227,7 @@ internal sealed class AnnotationOverlay : Window
             doneButton.Background=UtilityUi.Accent;doneButton.Foreground=Brushes.White;doneButton.Content=UtilityUi.ShortcutCaption("Done","Ctrl+Enter",true);
             if(editorHost.Child is StackPanel editPanel) editPanel.Children.OfType<TextBlock>().Last().Foreground=UtilityUi.Muted;
         }
+        UpdateColorIndicator();colorPicker?.ApplyTheme();if(colorPicker!=null) LayoutColorPicker();
         Refresh();L.Tree(editorHost);
     }
     private IntPtr Hook(IntPtr hwnd,int message,IntPtr wp,IntPtr lp,ref bool handled)
@@ -258,7 +269,7 @@ internal sealed class AnnotationOverlay : Window
         }
         else if (hit != null) surface.Focus();
         else if (Tool == Tool.Marker) BeginEdit(p);
-        else { down=p; dragging=true; if (Tool == Tool.Pencil) { pencilPoints.Clear(); pencilPoints.Add(p); } surface.CaptureMouse(); }
+        else { down=p; dragging=true; gestureColor=owner.AnnotationColor; if (Tool == Tool.Pencil) { pencilPoints.Clear(); pencilPoints.Add(p); } surface.CaptureMouse(); }
         Refresh();
     }
     public void MovePointer(P p)
@@ -266,13 +277,13 @@ internal sealed class AnnotationOverlay : Window
         if(!AnnotationMode && owner.WindowMode) { owner.HoverWindow(new(p.X+Frame.Monitor.Left,p.Y+Frame.Monitor.Top));return; }
         if (!AnnotationMode) { RegionSelection.Move(p,Frame.Monitor.Width,Frame.Monitor.Height); Refresh(); return; }
         if (!dragging) { if(UiDesign.IsEmber && Editable && !Editing) { var next=HitUiMarker(p)?.Id;if(next!=hoveredMarker) { hoveredMarker=next;Refresh(); } } return; } var rawPointer=p;p=Geo.Clamp(p,Model.Width,Model.Height);
-        if (moving != null) gesture = new BadgeGlyph(moving.Id,moving.Label,Geo.Clamp(new(moving.Anchor.X+rawPointer.X-down.X,moving.Anchor.Y+rawPointer.Y-down.Y),Model.Width,Model.Height));
-        else if (Tool == Tool.Arrow) gesture = new ArrowGlyph(Guid.Empty,down,p);
-        else if (Tool == Tool.Rectangle) gesture = new BoxGlyph(Guid.Empty,Geo.Normalize(down,p,Model.Width,Model.Height));
+        if (moving != null) gesture = new BadgeGlyph(moving.Id,moving.Label,Geo.Clamp(new(moving.Anchor.X+rawPointer.X-down.X,moving.Anchor.Y+rawPointer.Y-down.Y),Model.Width,Model.Height),moving.Color);
+        else if (Tool == Tool.Arrow) gesture = new ArrowGlyph(Guid.Empty,down,p,gestureColor);
+        else if (Tool == Tool.Rectangle) gesture = new BoxGlyph(Guid.Empty,Geo.Normalize(down,p,Model.Width,Model.Height),gestureColor);
         else if (Tool == Tool.Pencil)
         {
             if (pencilPoints[^1].Distance(p) >= 1) pencilPoints.Add(p);
-            gesture = new PencilGlyph(Guid.Empty,pencilPoints.AsReadOnly());
+            gesture = new PencilGlyph(Guid.Empty,pencilPoints.AsReadOnly(),gestureColor);
         }
         Refresh();
     }
@@ -291,26 +302,29 @@ internal sealed class AnnotationOverlay : Window
         if (!dragging) return; MovePointer(p);
         Marker? clickedMarker=moving!=null && down.Distance(p)<3 ? moving : null;
         if (moving != null && gesture is BadgeGlyph m && down.Distance(p)>=3) Model.Move(moving.Id,m.Anchor);
-        else if (moving == null && Tool == Tool.Arrow) Model.AddArrow(down,p);
-        else if (moving == null && Tool == Tool.Rectangle) Model.AddBox(down,p);
+        else if (moving == null && Tool == Tool.Arrow) Model.AddArrow(down,p,gestureColor);
+        else if (moving == null && Tool == Tool.Rectangle) Model.AddBox(down,p,gestureColor);
         else if (moving == null && Tool == Tool.Pencil)
         {
             var end = Geo.Clamp(p,Model.Width,Model.Height);
             if (pencilPoints[^1] != end) pencilPoints.Add(end);
-            Model.AddPencil(pencilPoints);
+            Model.AddPencil(pencilPoints,gestureColor);
         }
-        dragging=false; moving=null; gesture=null; pencilPoints.Clear(); surface.ReleaseMouseCapture(); surface.Focus();
+        dragging=false; moving=null; gesture=null; pencilPoints.Clear(); gestureColor=null; surface.ReleaseMouseCapture(); surface.Focus();
         if(clickedMarker!=null) BeginEdit(clickedMarker.Anchor,clickedMarker.Id);
         Refresh();
     }
     public void InterruptGesture()
     {
+        CloseColorPicker();
         RegionSelection.CancelGesture(); dragging=false; moving=null; gesture=null; pencilPoints.Clear();
         if (surface.IsMouseCaptured) surface.ReleaseMouseCapture(); if (ready) Refresh();
     }
     public void BeginEdit(P anchor,Guid? id = null)
     {
         if (!Editable || Editing) return; InterruptGesture(); editingId=id; editingAnchor=Geo.Clamp(anchor,Model.Width,Model.Height);
+        // A new marker fixes the working color at gesture start; editing keeps the existing record untouched.
+        pendingColor=id.HasValue ? null : owner.AnnotationColor;
         var m=id.HasValue ? Model.Items.OfType<Marker>().FirstOrDefault(a=>a.Id==id) : null;
         editor.Text=m?.Comment ?? ""; error.Text="";error.Visibility=Visibility.Collapsed; editorTitle.Text=m?.Label ?? Model.Letter+Model.NextMarker;
         commentEditing=true;if(UiDesign.IsEmber) ShowEditorVisuals(); else editorHost.Visibility=Visibility.Visible;LayoutEditor();ReturnFocus();editor.CaretIndex=editor.Text.Length;
@@ -354,11 +368,122 @@ internal sealed class AnnotationOverlay : Window
         else { bool below=card.Top>=badge.Bottom;from=new Point(badge.Left+badge.Width/2,below ? badge.Bottom : badge.Top);to=new Point(Math.Clamp(from.X,card.Left+4,card.Right-4),below ? card.Top+4 : card.Bottom-4); }
         editorLink.Place(from,to,badge);editorLink.Reveal();
     }
+    // Working color indicator and the compact popover share the overlay's existing DIP canvas/HWND.
+    internal bool ColorPickerOpen => colorPicker!=null;
+    internal AnnotationColorPicker? ColorPicker => colorPicker;
+    internal Button ColorButton => colorButton;
+    internal System.Windows.Shapes.Path? ColorChevron => colorChevron;
+    internal AnnotationColor CurrentAnnotationColor => owner.EffectiveAnnotationColor;
+    internal static SolidColorBrush SurfaceContrast
+    {
+        get { var c=Appearance.Palette.Surface.Color; return Painter.IsLight(new AnnotationColor(c.R,c.G,c.B)) ? UtilityUi.Ink : Brushes.White; }
+    }
+    private Button CreateColorButton()
+    {
+        var button=UtilityUi.Button("","Annotation color (C)",ToggleColorPicker);
+        button.MinWidth=46;
+        // Recognizable artist-palette outline: rounded silhouette with a thumb notch/hole and paint dots.
+        paletteIcon=new System.Windows.Shapes.Path { Data=System.Windows.Media.Geometry.Parse("M9,1.5 C4.6,1.5 1.5,4.8 1.5,9 C1.5,13.2 4.6,16.5 9,16.5 C10.4,16.5 11,15.6 11,14.7 C11,13.9 10.4,13.5 10.4,12.7 C10.4,11.7 11.3,10.9 12.5,10.9 L15.2,10.9 C16.9,10.9 17.5,9.6 17.5,8.2 C17.5,4.3 13.7,1.5 9,1.5 Z M4.9,12.4 A1.5,1.5 0 1 0 7.9,12.4 A1.5,1.5 0 1 0 4.9,12.4"), Stroke=SurfaceContrast, StrokeThickness=1.4, Width=17, Height=17, Stretch=Stretch.Uniform, VerticalAlignment=VerticalAlignment.Center };
+        var paletteCanvas=new Canvas { Width=17, Height=17, VerticalAlignment=VerticalAlignment.Center };
+        paletteCanvas.Children.Add(paletteIcon);
+        foreach(var (x,y) in new[]{(5.0,5.8),(8.4,4.6),(12.0,6.0)})
+        {
+            var paint=new System.Windows.Shapes.Ellipse { Width=2.2, Height=2.2, Fill=SurfaceContrast };
+            Canvas.SetLeft(paint,x-1.1);Canvas.SetTop(paint,y-1.1);paletteCanvas.Children.Add(paint);paletteDots.Add(paint);
+        }
+        colorDot=new System.Windows.Shapes.Ellipse { Width=9, Height=9, StrokeThickness=1, Margin=new Thickness(6,0,5,0), VerticalAlignment=VerticalAlignment.Center };
+        colorChevron=new System.Windows.Shapes.Path { Data=System.Windows.Media.Geometry.Parse("M1,1 L4,4 L7,1"), Stroke=UtilityUi.Muted, StrokeThickness=1.4, Width=8, Height=5, Stretch=Stretch.Uniform, VerticalAlignment=VerticalAlignment.Center };
+        var row=new StackPanel { Orientation=Orientation.Horizontal };
+        row.Children.Add(paletteCanvas);row.Children.Add(colorDot);row.Children.Add(colorChevron);
+        button.Content=row;
+        return button;
+    }
+    private void UpdateColorIndicator()
+    {
+        if(paletteIcon!=null) paletteIcon.Stroke=SurfaceContrast;
+        foreach(var paint in paletteDots) paint.Fill=SurfaceContrast;
+        if(colorChevron!=null) colorChevron.Stroke=UtilityUi.Muted;
+        if(colorDot==null) return;
+        var color=owner.EffectiveAnnotationColor;
+        colorDot.Fill=Painter.Brush(color);colorDot.Stroke=Painter.IsLight(color) ? ConstructDesign.Ink : Brushes.White;
+    }
+    internal void ToggleColorPicker()
+    {
+        if(colorPicker!=null) { CloseColorPicker(); return; }
+        if(!Editable) return;
+        if(Editing) { Message("Save or cancel the comment first.");ReturnFocus();return; }
+        InterruptGesture();
+        OpenColorPicker();
+    }
+    private void OpenColorPicker()
+    {
+        CloseColorPicker();
+        colorPicker=new AnnotationColorPicker(owner.EffectiveAnnotationColor,color=>owner.ChooseAnnotationColor(color),UiDesign.IsEmber);
+        colorPicker.DismissRequested+=CloseColorPicker;
+        colorNotch=colorPicker.NotchElement as AnnotationColorPicker.NotchSurface;
+        if(colorNotch!=null) colorNotch.IsHitTestVisible=false;
+        ui.Children.Add(colorPicker);Panel.SetZIndex(colorPicker,3);
+        ui.Children.Add(colorNotch);Panel.SetZIndex(colorNotch,3);
+        LayoutColorPicker();
+        colorPicker.Reveal(SystemParameters.ClientAreaAnimation);
+        colorPicker.Swatches.FirstOrDefault()?.Focus();
+    }
+    internal void CloseColorPicker()
+    {
+        if(colorPicker==null) return;
+        colorPicker.StopInteraction();colorPicker.StopMotion();colorPicker.DismissRequested-=CloseColorPicker;
+        ui.Children.Remove(colorPicker);
+        if(colorNotch!=null) ui.Children.Remove(colorNotch);
+        colorPicker=null;colorNotch=null;
+        // Restore the drawing surface only while this overlay still owns the foreground. Deactivation
+        // (Deactivated -> InterruptGesture) must not reclaim focus from the receiver application.
+        if(IsVisible && IsActive) surface.Focus();
+    }
+    internal bool ColorPickerHitTest(Point pointInWindow)
+    {
+        if(colorPicker==null) return false;
+        // Geometric containment works for both real input and hidden synthetic layouts.
+        return Contains(colorPicker,pointInWindow) || colorNotch is { } notch && Contains(notch,pointInWindow) || Contains(colorButton,pointInWindow);
+    }
+    private bool Contains(FrameworkElement element,Point point)
+    {
+        if(element.ActualWidth<=0 || element.ActualHeight<=0 || Content is not FrameworkElement root) return false;
+        var origin=element.TranslatePoint(new Point(0,0),root);
+        return new Rect(origin.X,origin.Y,element.ActualWidth,element.ActualHeight).Contains(point);
+    }
+    // Shared by the real pointer handler and synthetic checks: outside input only dismisses the popover.
+    internal bool DismissColorPickerOutside(Point pointInWindow)
+    {
+        if(colorPicker==null) return false;
+        if(ColorPickerHitTest(pointInWindow)) return false;
+        CloseColorPicker();return true;
+    }
+    private void LayoutColorPicker()
+    {
+        if(colorPicker==null) return;
+        var t=DeviceTransform;double width=Math.Max(1,Frame.Monitor.Width/t.M11),height=Math.Max(1,Frame.Monitor.Height/t.M22);
+        colorPicker.Width=Math.Min(420,Math.Max(1,width-24));
+        colorPicker.Measure(new Size(colorPicker.Width,double.PositiveInfinity));
+        double panelHeight=colorPicker.DesiredSize.Height;
+        double buttonWidth=colorButton.ActualWidth>0 ? colorButton.ActualWidth : 46;
+        Point origin;
+        try { origin=colorButton.TranslatePoint(new Point(0,0),ui); }
+        catch(InvalidOperationException) { origin=new Point(8,16); }
+        double anchor=origin.X+buttonWidth/2;
+        double left=Math.Clamp(anchor-colorPicker.Width/2,8,Math.Max(8,width-colorPicker.Width-8));
+        // Anchor below the whole tool row so a wrapped toolbar at narrow widths never overlaps the popup.
+        double barBottom=bar.TranslatePoint(new Point(0,0),ui).Y+bar.ActualHeight;
+        double top=Math.Max(8,Math.Max(barBottom,origin.Y+Math.Max(1,colorButton.ActualHeight))+18);
+        if(top+panelHeight>height-8) top=Math.Max(8,height-8-panelHeight);
+        Canvas.SetLeft(colorPicker,left);Canvas.SetTop(colorPicker,top);
+        colorPicker.NotchOffset=Math.Clamp(anchor-left,16,Math.Max(16,colorPicker.Width-16));
+        if(colorNotch!=null) { colorNotch.Width=colorPicker.Width;Canvas.SetLeft(colorNotch,left);Canvas.SetTop(colorNotch,top-7); }
+    }
     public bool CommitComment()
     {
         if (!Editing) return false;
         if (string.IsNullOrWhiteSpace(editor.Text)) { error.Text=L.T("Type a comment, or press Esc to cancel.");error.Visibility=Visibility.Visible; editor.Focus(); return false; }
-        if (editingId.HasValue) { Model.Edit(editingId.Value,editor.Text); Selected=editingId; } else Selected=Model.CreateMarker(editingAnchor,editor.Text).Id;
+        if (editingId.HasValue) { Model.Edit(editingId.Value,editor.Text); Selected=editingId; } else Selected=Model.CreateMarker(editingAnchor,editor.Text,pendingColor).Id;
         CloseEditor(); Tool=Tool.Marker; Refresh(); return true;
     }
     private void StopEditorMotion()
@@ -407,6 +532,12 @@ internal sealed class AnnotationOverlay : Window
     private void Keys(object sender,KeyEventArgs e)
     {
         UpdateModifierVisual();
+        // Popup keyboard belongs to the picker: tools, Delete, Undo/Redo, Enter and Done stay untouched.
+        if(colorPicker!=null)
+        {
+            if(e.Key==Key.Escape) { CloseColorPicker();e.Handled=true; }
+            return;
+        }
         if (!AnnotationMode)
         {
             var key=e.Key==Key.System ? e.SystemKey : e.Key;
@@ -442,6 +573,7 @@ internal sealed class AnnotationOverlay : Window
         else if (e.Key==Key.A) Switch(Tool.Arrow);
         else if (e.Key==Key.R) Switch(Tool.Rectangle);
         else if (e.Key==Key.P) Switch(Tool.Pencil);
+        else if (e.Key==Key.C && Keyboard.Modifiers==ModifierKeys.None) ToggleColorPicker();
         else return;
         e.Handled=true;
     }
@@ -476,6 +608,7 @@ internal sealed class AnnotationOverlay : Window
     }
     public void Refresh()
     {
+        if(!Editable && colorPicker!=null) CloseColorPicker();
         foreach (var button in annotationButtons) button.Visibility=Editable ? Visibility.Visible : Visibility.Collapsed;
         foreach (var (tool,button) in toolButtons)
         {
@@ -527,7 +660,7 @@ internal sealed class AnnotationOverlay : Window
             doneButton.IsEnabled=!Editing && !dragging;
         }
         UpdateModifierVisual();glow.InvalidateVisual();
-        foreach(var button in annotationButtons) L.Tree(button);LayoutToolbar(); surface.Cursor=Cursors.Cross; surface.InvalidateVisual();markerSurface?.UpdateInteraction();markerSurface?.InvalidateVisual();
+        foreach(var button in annotationButtons) L.Tree(button);UpdateColorIndicator();LayoutToolbar();if(colorPicker!=null) LayoutColorPicker(); surface.Cursor=Cursors.Cross; surface.InvalidateVisual();markerSurface?.UpdateInteraction();markerSurface?.InvalidateVisual();
     }
     private void CompleteSelection(PxRect region,bool annotate)
     {
@@ -556,7 +689,7 @@ internal sealed class AnnotationOverlay : Window
         if (!Editable) return []; var list=Painter.Project(Model.Items).ToList();
         if (gesture is BadgeGlyph movingGlyph) list.RemoveAll(g=>g.Id==movingGlyph.Id);
         if (gesture!=null) list.Add(gesture);
-        if (Editing && editingId==null) list.Add(new BadgeGlyph(Guid.Empty,Model.Letter+Model.NextMarker,editingAnchor)); return list.ToArray();
+        if (Editing && editingId==null) list.Add(new BadgeGlyph(Guid.Empty,Model.Letter+Model.NextMarker,editingAnchor,pendingColor)); return list.ToArray();
     }
     private sealed class Surface(AnnotationOverlay window) : FrameworkElement
     {
@@ -615,7 +748,7 @@ internal sealed class AnnotationOverlay : Window
             foreach(var badge in window.VisibleGlyphs().OfType<BadgeGlyph>())
             {
                 double emphasis=Weight(badge.Id,previous)*(1-progress)+Weight(badge.Id,current)*progress;
-                MarkerBadgeUi.Draw(dc,window.MarkerUiAnchor(badge.Anchor),window.MarkerUiBounds(badge.Anchor,badge.Label),badge.Label,emphasis);
+                MarkerBadgeUi.Draw(dc,window.MarkerUiAnchor(badge.Anchor),window.MarkerUiBounds(badge.Anchor,badge.Label),badge.Label,emphasis,badge.Color);
             }
         }
     }

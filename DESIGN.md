@@ -72,7 +72,7 @@ Some earlier design renders contained controls that are not in the real applicat
 ### 1.3 Explicitly deferred
 
 - Overlap-free annotation marker research, external reference crops, dual-image delivery, transparent marker map.
-- User-selectable annotation stroke colors, pen widths, fill effects.
+- User-selectable annotation stroke colors, pen widths, fill effects. (The color picker was separately approved and implemented in 0.3.1: one working color for new objects, per-object color retention; pen widths and fill effects remain deferred.)
 - Direct file export / save-as inside the overlay, cloud upload, AI integrations.
 - Session thumbnails/shelf, annotation property inspector, unlimited new tool types.
 - New Settings navigation pages unless real features exist and are separately approved.
@@ -631,6 +631,8 @@ annotation.strokeContrast    = Paper #FBFEF8 halo (Ember) / white halo (Classic)
 ```
 
 Gesture/draft preview and bitmap export share `Painter.Draw`, so a palette change must update that one path and be covered by synthetic preview/export checks on both light and dark backgrounds. Further annotation appearance changes still require their own tested and approved decision.
+
+Annotation color (0.3.1) is a separate, approved extension of this section. The compact palette button (`__ / color dot / chevron`) sits between the four tools and Undo; its popup is a matte surface with a small notch, presets row, saturation/brightness field, hue strip, R/G/B fields and a square preview. Classic uses system type and the blue accent; Ember uses Commissioner and Signal. The selected color applies to new markers, arrows, rectangles and pencil strokes only; existing objects keep their own color through Undo/Redo. `Painter` keeps the design default when an object has no explicit color, so the palettes above remain the untouched defaults. A colored marker uses the chosen color as its accent while preserving its form, label, geometry and readable number. The working color is runtime RAM only (no preferences field). Presets apply immediately; SV/hue/RGB edits are a local candidate confirmed only by the square **Apply color** preview button (focusable, Enter/Space), and `C` opens the popup from annotation mode (never intercepts comment or RGB typing). R/G/B digits are vertically centered and values above 255 clamp to 255. Keyboard/Escape/outside-click/mouse-capture cleanup and reduced-motion behavior are input/lifecycle contracts, not visual options; no pen-width or fill controls are added.
 
 ---
 

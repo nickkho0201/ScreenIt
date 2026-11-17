@@ -2,7 +2,7 @@ English | [Русский](README.ru.md)
 
 # ScreenIt
 
-**ScreenIt 0.3.0**
+**ScreenIt 0.3.1**
 
 ScreenIt is a local-first Windows screenshot annotation utility designed for quickly showing AI assistants, developers, designers, and teammates exactly what you mean.
 
@@ -25,15 +25,18 @@ Comment text mentions only screenshots with comment markers. Images without mark
 - Paste Session and Clear Session with an optional confirmation.
 - System/Dark/Light appearance, English/Russian UI, and configurable global shortcuts (0.2.0).
 - Classic/Ember design choice (0.3.0): Classic keeps the blue 0.2.3 interface, Ember is the CONSTRUCT design.
+- Annotation color picker (0.3.1): a compact palette button between the tools and Undo opens presets, an SV/hue picker, and R/G/B fields; **C** opens the same popup in annotation mode. Presets apply immediately; custom SV/hue/RGB edits stay a local candidate until you activate the square **Apply color** preview, which applies it and closes the popup. Escape or an outside click discards the candidate. The chosen color applies only to new markers, arrows, rectangles, and pencil strokes in both the live preview and the exported image; older annotations keep their own color through Undo/Redo. Values above 255 clamp to 255. The working color lives in RAM for the process (no settings change) and both designs keep their previous colors until a choice is made. Available in Classic/Ember, Dark/Light, and RU/EN.
 - Compact, content-sized feedback above the taskbar with soft fades, including confirmation that ScreenIt is running in the background; without sound.
 - Optional per-user **Start with Windows** autostart, off by default, managed from Settings.
 - Local-first: no account, cloud, backend, or telemetry.
 
 ## Installation
 
+The **0.3.1** release is being prepared and is not published yet. The [Releases](https://github.com/nickkho0201/ScreenIt/releases) page currently offers the 0.3.0 packages under their own versioned names (`ScreenIt-Setup-0.3.0.exe`, `ScreenIt-0.3.0-win-x64-portable.zip`); the 0.3.1 files below become downloadable only after publication.
+
 ### Installer
 
-1. Download **ScreenIt-Setup-0.3.0.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
+1. After publication, download **ScreenIt-Setup-0.3.1.exe** from [Releases](https://github.com/nickkho0201/ScreenIt/releases).
 2. Run the installer.
 3. Start ScreenIt from the Start menu.
 4. ScreenIt runs in the system tray.
@@ -44,7 +47,7 @@ Installation is per-user, without mandatory administrator privileges. **Start wi
 
 ### Portable
 
-Download **ScreenIt-0.3.0-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
+After publication, download **ScreenIt-0.3.1-win-x64-portable.zip** from [Releases](https://github.com/nickkho0201/ScreenIt/releases), extract it, and run **ScreenIt.App.exe**.
 
 ### Requirements
 

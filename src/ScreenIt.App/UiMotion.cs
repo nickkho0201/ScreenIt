@@ -25,4 +25,17 @@ internal static class UiMotion
         Animate(offset,TranslateTransform.YProperty,4,0);
         element.Unloaded+=(_,_)=> { element.BeginAnimation(UIElement.OpacityProperty,null);offset.BeginAnimation(TranslateTransform.YProperty,null); };
     }
+    // Explicit, testable variant for compact popovers: state is final before any optional presentation clock starts.
+    internal static void Reveal(FrameworkElement element,TranslateTransform offset,bool animate,int milliseconds=120)
+    {
+        element.BeginAnimation(UIElement.OpacityProperty,null);offset.BeginAnimation(TranslateTransform.YProperty,null);
+        element.Opacity=1;offset.Y=0;
+        if(!animate || !element.IsVisible) return;
+        element.BeginAnimation(UIElement.OpacityProperty,new DoubleAnimation(0,1,TimeSpan.FromMilliseconds(milliseconds)) { EasingFunction=new QuadraticEase { EasingMode=EasingMode.EaseOut },FillBehavior=FillBehavior.Stop });
+        Animate(offset,TranslateTransform.YProperty,4,0,milliseconds);
+    }
+    internal static void Stop(FrameworkElement element,TranslateTransform? offset=null)
+    {
+        element.BeginAnimation(UIElement.OpacityProperty,null);offset?.BeginAnimation(TranslateTransform.YProperty,null);
+    }
 }
